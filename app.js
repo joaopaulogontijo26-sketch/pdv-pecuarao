@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 19/05/2026, 14:42:50 */
+/* PDV Pro v1.0 - Compilado em 19/05/2026, 15:10:08 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -165,17 +165,33 @@ async function syncSave(col, val) {
       return;
     }
     const transform = _toRow[col];
-    if (!transform || !Array.isArray(val) || val.length === 0) return;
+    if (!transform || !Array.isArray(val)) return;
     const rows = val.map(transform);
-    for (let i = 0; i < rows.length; i += 200) {
-      const batch = rows.slice(i, i + 200);
-      await fetch(SUPABASE_URL + '/rest/v1/' + col + '?on_conflict=id', {
-        method: 'POST',
-        headers: {
-          ..._SB_H(),
-          Prefer: 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify(batch)
+    if (rows.length > 0) {
+      for (let i = 0; i < rows.length; i += 200) {
+        const batch = rows.slice(i, i + 200);
+        await fetch(SUPABASE_URL + '/rest/v1/' + col + '?on_conflict=id', {
+          method: 'POST',
+          headers: {
+            ..._SB_H(),
+            Prefer: 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify(batch)
+        });
+      }
+      // Deleta do Supabase registros que foram removidos localmente
+      const ids = rows.map(r => r.id).filter(Boolean);
+      if (ids.length > 0) {
+        await fetch(SUPABASE_URL + '/rest/v1/' + col + '?id=not.in.(' + ids.join(',') + ')', {
+          method: 'DELETE',
+          headers: _SB_H()
+        });
+      }
+    } else {
+      // Array vazio — deleta todos da tabela
+      await fetch(SUPABASE_URL + '/rest/v1/' + col + '?id=neq._vazio_', {
+        method: 'DELETE',
+        headers: _SB_H()
       });
     }
   } catch (e) {
