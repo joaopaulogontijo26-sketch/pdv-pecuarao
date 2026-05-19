@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 18/05/2026, 21:04:51 */
+/* PDV Pro v1.0 - Compilado em 19/05/2026, 12:58:13 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -1453,7 +1453,60 @@ const loadUsers = () => {
     role: "admin"
   } : x);
 };
-const saveUsers = v => save("pdv_users", v);
+const saveUsers = v => {
+  save("pdv_users", v);
+  // Sincroniza com Supabase
+  const key = localStorage.getItem('_sb_key') || "";
+  if (!key) return;
+  const rows = v.map(u => ({
+    id: u.id,
+    name: u.name,
+    pin: u.pin,
+    role: u.role || "vendedor",
+    permissions: u.permissions || {},
+    active: u.active !== false,
+    created_at: u.createdAt || Date.now()
+  }));
+  fetch("https://jyrugkklsacswgysjser.supabase.co/rest/v1/users?on_conflict=id", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": key,
+      "Authorization": "Bearer " + key,
+      "Prefer": "resolution=merge-duplicates"
+    },
+    body: JSON.stringify(rows)
+  }).catch(e => console.warn("[PDV] saveUsers falhou:", e.message));
+};
+const loadUsersFromSupabase = async () => {
+  const key = localStorage.getItem('_sb_key') || "";
+  if (!key) return null;
+  try {
+    const r = await fetch("https://jyrugkklsacswgysjser.supabase.co/rest/v1/users?select=*&active=eq.true", {
+      headers: {
+        "apikey": key,
+        "Authorization": "Bearer " + key
+      }
+    });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    if (!rows || rows.length === 0) return null;
+    const users = rows.map(u => ({
+      id: u.id,
+      name: u.name,
+      pin: u.pin,
+      role: u.role || "vendedor",
+      permissions: u.permissions || {},
+      active: u.active !== false,
+      createdAt: u.created_at
+    }));
+    save("pdv_users", users);
+    return users;
+  } catch (e) {
+    console.warn("[PDV] loadUsersFromSupabase falhou:", e.message);
+    return null;
+  }
+};
 function KeySetupScreen({
   onDone
 }) {
@@ -7448,7 +7501,7 @@ function PDVApp() {
   const _syncRef = useRef(false);
   if (!_syncRef.current) {
     _syncRef.current = true;
-    syncLoad().then(data => {
+    syncLoad().then(async data => {
       if (data) {
         if (Array.isArray(data.products)) setProducts(data.products);
         if (Array.isArray(data.customers)) setCustomers(data.customers);
@@ -7458,6 +7511,9 @@ function PDVApp() {
       } else {
         setServerOk(false);
       }
+      // Carrega usuários do Supabase
+      const sbUsers = await loadUsersFromSupabase();
+      if (sbUsers && sbUsers.length > 0) setUsers(sbUsers);
       setAppReady(true);
     }).catch(() => {
       setServerOk(false);
