@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 19/05/2026, 12:58:13 */
+/* PDV Pro v1.0 - Compilado em 19/05/2026, 14:42:50 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -1581,7 +1581,16 @@ function KeySetupScreen({
     style: {
       color: "#e8e9f0"
     }
-  }, "anon/publishable"), /*#__PURE__*/React.createElement("br", null), "Supabase \u2192 Settings \u2192 API \u2192 Project API keys"), /*#__PURE__*/React.createElement("div", {
+  }, "JWT anon key"), /*#__PURE__*/React.createElement("br", null), "Supabase \u2192 Settings \u2192 ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: "#e8e9f0"
+    }
+  }, "Chaves JWT"), " \u2192 anon key", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "#E8682A"
+    }
+  }, "(come\xE7a com eyJhbGci...)")), /*#__PURE__*/React.createElement("div", {
     style: {
       width: "100%",
       maxWidth: 420
@@ -1589,7 +1598,7 @@ function KeySetupScreen({
   }, /*#__PURE__*/React.createElement("textarea", {
     value: key,
     onChange: e => setKey(e.target.value),
-    placeholder: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    placeholder: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6...",
     style: {
       width: "100%",
       height: 100,
