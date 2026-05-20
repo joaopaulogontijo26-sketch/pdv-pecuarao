@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 20/05/2026, 11:23:06 */
+/* PDV Pro v1.0 - Compilado em 20/05/2026, 11:39:17 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -460,136 +460,111 @@ function ScannerBase({
   const rafRef = useRef(null);
   const activeRef = useRef(false);
   const stopAll = () => {
+    var _detRef$current;
     activeRef.current = false;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
+    if ((_detRef$current = detRef.current) !== null && _detRef$current !== void 0 && _detRef$current._quagga) {
+      try {
+        detRef.current._quagga.stop();
+      } catch (_) {}
+    }
   };
   const startScan = async () => {
     if (activeRef.current) return;
     activeRef.current = true;
     setStatus("scanning");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment"
-        }
-      });
-      if (!activeRef.current) {
-        stream.getTracks().forEach(t => t.stop());
+    const beep = () => {
+      try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ac.createOscillator();
+        const g = ac.createGain();
+        o.connect(g);
+        g.connect(ac.destination);
+        o.frequency.value = 1800;
+        o.type = "square";
+        g.gain.setValueAtTime(0.3, ac.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.12);
+        o.start(ac.currentTime);
+        o.stop(ac.currentTime + 0.12);
+      } catch (_) {}
+    };
+    // Carrega Quagga2 — funciona em iOS Safari, Android, Chrome
+    const loadQuagga = () => new Promise((res, rej) => {
+      if (window.Quagga) {
+        res(window.Quagga);
         return;
       }
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.7.4/dist/quagga.min.js";
+      s.onload = () => res(window.Quagga);
+      s.onerror = rej;
+      document.head.appendChild(s);
+    });
+    try {
+      const Quagga = await loadQuagga();
+      // Garante que o elemento de vídeo existe
+      await new Promise(r => setTimeout(r, 300));
+      const videoEl = videoRef.current;
+      if (!videoEl) {
+        setStatus("error");
+        return;
       }
-      if ("BarcodeDetector" in window) {
-        detRef.current = new window.BarcodeDetector({
-          formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "qr_code"]
-        });
-        const tick = async () => {
-          if (!activeRef.current || !videoRef.current) return;
-          try {
-            const codes = await detRef.current.detect(videoRef.current);
-            if (codes.length > 0) {
-              stopAll();
-              // Bipe de sucesso
-              try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const o = ctx.createOscillator();
-                const g = ctx.createGain();
-                o.connect(g);
-                g.connect(ctx.destination);
-                o.frequency.value = 1800;
-                o.type = 'square';
-                g.gain.setValueAtTime(0.3, ctx.currentTime);
-                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-                o.start(ctx.currentTime);
-                o.stop(ctx.currentTime + 0.12);
-              } catch (_) {}
-              onCode(codes[0].rawValue);
-              return;
+      Quagga.init({
+        inputStream: {
+          name: "Live",
+          type: "LiveStream",
+          target: videoEl,
+          constraints: {
+            facingMode: "environment",
+            width: {
+              ideal: 1280
+            },
+            height: {
+              ideal: 720
             }
-          } catch (_) {}
-          if (activeRef.current) rafRef.current = requestAnimationFrame(tick);
-        };
-        rafRef.current = requestAnimationFrame(tick);
-      } else {
-        // Fallback: ZXing para celulares sem BarcodeDetector (Samsung, etc)
-        const beep = () => {
-          try {
-            const ac = new (window.AudioContext || window.webkitAudioContext)();
-            const o = ac.createOscillator();
-            const g = ac.createGain();
-            o.connect(g);
-            g.connect(ac.destination);
-            o.frequency.value = 1800;
-            o.type = 'square';
-            g.gain.setValueAtTime(0.3, ac.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.12);
-            o.start(ac.currentTime);
-            o.stop(ac.currentTime + 0.12);
-          } catch (_) {}
-        };
-        const loadZXing = () => new Promise((res, rej) => {
-          if (window.ZXing) {
-            res(window.ZXing);
-            return;
           }
-          const s = document.createElement('script');
-          s.src = 'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js';
-          s.onload = () => res(window.ZXing);
-          s.onerror = rej;
-          document.head.appendChild(s);
-        });
-        try {
-          const ZXing = await loadZXing();
-          const reader = new ZXing.BrowserMultiFormatReader();
-          detRef.current = {
-            _zxing: reader
-          };
-          const canvas = document.createElement('canvas');
-          const ctx2d = canvas.getContext('2d');
-          const tick = () => {
-            if (!activeRef.current || !videoRef.current) return;
-            try {
-              if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-                canvas.width = videoRef.current.videoWidth;
-                canvas.height = videoRef.current.videoHeight;
-                ctx2d.drawImage(videoRef.current, 0, 0);
-                // Converte RGBA → RGB para ZXing
-                const imgData = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
-                const rgba = imgData.data;
-                const rgb = new Uint8ClampedArray(canvas.width * canvas.height * 3);
-                for (let p = 0, r = 0; p < rgba.length; p += 4, r += 3) {
-                  rgb[r] = rgba[p];
-                  rgb[r + 1] = rgba[p + 1];
-                  rgb[r + 2] = rgba[p + 2];
-                }
-                const luminance = new ZXing.RGBLuminanceSource(rgb, canvas.width, canvas.height);
-                const binary = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-                try {
-                  const result = new ZXing.MultiFormatReader().decode(binary);
-                  if (result) {
-                    stopAll();
-                    beep();
-                    onCode(result.getText());
-                    return;
-                  }
-                } catch (_) {}
-              }
-            } catch (_) {}
-            if (activeRef.current) rafRef.current = requestAnimationFrame(tick);
-          };
-          rafRef.current = requestAnimationFrame(tick);
-        } catch (e) {
-          setStatus('error');
+        },
+        locator: {
+          patchSize: "medium",
+          halfSample: true
+        },
+        numOfWorkers: 0,
+        frequency: 10,
+        decoder: {
+          readers: ["ean_reader", "ean_8_reader", "code_128_reader", "code_39_reader", "upc_reader", "upc_e_reader"]
+        },
+        locate: true
+      }, err => {
+        if (err) {
+          console.error("Quagga init:", err);
+          setStatus("error");
+          return;
         }
-      }
-    } catch (_) {
+        if (!activeRef.current) {
+          Quagga.stop();
+          return;
+        }
+        Quagga.start();
+        detRef.current = {
+          _quagga: Quagga
+        };
+      });
+      Quagga.onDetected(result => {
+        var _result$codeResult;
+        const code = result === null || result === void 0 || (_result$codeResult = result.codeResult) === null || _result$codeResult === void 0 ? void 0 : _result$codeResult.code;
+        if (code && activeRef.current) {
+          Quagga.stop();
+          stopAll();
+          beep();
+          onCode(code);
+        }
+      });
+    } catch (e) {
+      console.error("Scanner error:", e);
       setStatus("error");
       activeRef.current = false;
     }
