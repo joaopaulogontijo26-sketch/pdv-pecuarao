@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 19/05/2026, 15:10:08 */
+/* PDV Pro v1.0 - Compilado em 19/05/2026, 22:37:19 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -496,6 +496,20 @@ function ScannerBase({
             const codes = await detRef.current.detect(videoRef.current);
             if (codes.length > 0) {
               stopAll();
+              // Bipe de sucesso
+              try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.connect(g);
+                g.connect(ctx.destination);
+                o.frequency.value = 1800;
+                o.type = 'square';
+                g.gain.setValueAtTime(0.3, ctx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+                o.start(ctx.currentTime);
+                o.stop(ctx.currentTime + 0.12);
+              } catch (_) {}
               onCode(codes[0].rawValue);
               return;
             }
@@ -503,6 +517,71 @@ function ScannerBase({
           if (activeRef.current) rafRef.current = requestAnimationFrame(tick);
         };
         rafRef.current = requestAnimationFrame(tick);
+      } else {
+        // Fallback: ZXing para celulares sem BarcodeDetector (Samsung, etc)
+        const beep = () => {
+          try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ac.createOscillator();
+            const g = ac.createGain();
+            o.connect(g);
+            g.connect(ac.destination);
+            o.frequency.value = 1800;
+            o.type = 'square';
+            g.gain.setValueAtTime(0.3, ac.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.12);
+            o.start(ac.currentTime);
+            o.stop(ac.currentTime + 0.12);
+          } catch (_) {}
+        };
+        const loadZXing = () => new Promise((res, rej) => {
+          if (window.ZXing) {
+            res(window.ZXing);
+            return;
+          }
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js';
+          s.onload = () => res(window.ZXing);
+          s.onerror = rej;
+          document.head.appendChild(s);
+        });
+        try {
+          const ZXing = await loadZXing();
+          const hints = new Map();
+          hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E, ZXing.BarcodeFormat.QR_CODE]);
+          const reader = new ZXing.BrowserMultiFormatReader(hints);
+          detRef.current = {
+            _zxing: reader
+          };
+          const canvas = document.createElement('canvas');
+          const ctx2d = canvas.getContext('2d');
+          const tick = () => {
+            if (!activeRef.current || !videoRef.current) return;
+            try {
+              if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+                canvas.width = videoRef.current.videoWidth;
+                canvas.height = videoRef.current.videoHeight;
+                ctx2d.drawImage(videoRef.current, 0, 0);
+                const imgData = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
+                const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
+                const binary = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+                try {
+                  const result = reader.decodeBitmap(binary);
+                  if (result) {
+                    stopAll();
+                    beep();
+                    onCode(result.getText());
+                    return;
+                  }
+                } catch (_) {}
+              }
+            } catch (_) {}
+            if (activeRef.current) rafRef.current = requestAnimationFrame(tick);
+          };
+          rafRef.current = requestAnimationFrame(tick);
+        } catch (e) {
+          setStatus('error');
+        }
       }
     } catch (_) {
       setStatus("error");
@@ -724,6 +803,7 @@ function ProductSheet({
     [k]: v
   }));
   const photoRef = useRef(null);
+  const photoGalRef = useRef(null);
   const [scanBC, setScanBC] = useState(false);
   const handlePhoto = e => {
     var _e$target$files;
@@ -799,21 +879,47 @@ function ProductSheet({
       display: "none"
     },
     onChange: handlePhoto
-  }), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("input", {
+    ref: photoGalRef,
+    type: "file",
+    accept: "image/*",
+    style: {
+      display: "none"
+    },
+    onChange: handlePhoto
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       var _photoRef$current;
       return (_photoRef$current = photoRef.current) === null || _photoRef$current === void 0 ? void 0 : _photoRef$current.click();
     },
     style: {
       ...S.btn("ghost"),
+      flex: 1,
       justifyContent: "center",
       padding: "8px",
-      fontSize: 12
+      fontSize: 11
     }
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "camera",
     size: 13
-  }), " Foto"), form.photo && /*#__PURE__*/React.createElement("button", {
+  }), " C\xE2mera"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      var _photoGalRef$current;
+      return (_photoGalRef$current = photoGalRef.current) === null || _photoGalRef$current === void 0 ? void 0 : _photoGalRef$current.click();
+    },
+    style: {
+      ...S.btn("ghost"),
+      flex: 1,
+      justifyContent: "center",
+      padding: "8px",
+      fontSize: 11
+    }
+  }, "\uD83D\uDDBC\uFE0F Galeria")), form.photo && /*#__PURE__*/React.createElement("button", {
     onClick: () => set("photo", ""),
     style: {
       ...S.btn("danger"),
