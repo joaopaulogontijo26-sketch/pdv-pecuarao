@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 20/05/2026, 12:08:27 */
+/* PDV Pro v1.0 - Compilado em 20/05/2026, 16:38:06 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -459,6 +459,7 @@ function ScannerBase({
   const detRef = useRef(null);
   const rafRef = useRef(null);
   const activeRef = useRef(false);
+  const scannerDivRef = useRef(null);
   const stopAll = () => {
     var _detRef$current;
     activeRef.current = false;
@@ -508,8 +509,7 @@ function ScannerBase({
       const Quagga = await loadQuagga();
       // Garante que o elemento de vídeo existe
       await new Promise(r => setTimeout(r, 300));
-      const videoEl = videoRef.current;
-      if (!videoEl) {
+      if (!scannerDivRef.current) {
         setStatus("error");
         return;
       }
@@ -517,7 +517,7 @@ function ScannerBase({
         inputStream: {
           name: "Live",
           type: "LiveStream",
-          target: videoEl,
+          target: scannerDivRef.current,
           constraints: {
             facingMode: "environment",
             width: {
@@ -653,13 +653,20 @@ function ScannerBase({
   }, /*#__PURE__*/React.createElement("video", {
     ref: videoRef,
     style: {
-      width: "100%",
-      height: "100%",
-      objectFit: "cover"
+      display: "none"
     },
     playsInline: true,
     muted: true,
     autoPlay: true
+  }), /*#__PURE__*/React.createElement("div", {
+    ref: scannerDivRef,
+    id: "scanner-container",
+    style: {
+      width: "100%",
+      height: "100%",
+      position: "absolute",
+      inset: 0
+    }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "absolute",
