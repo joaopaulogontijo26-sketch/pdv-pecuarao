@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 19/05/2026, 22:37:19 */
+/* PDV Pro v1.0 - Compilado em 20/05/2026, 11:23:06 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -547,9 +547,7 @@ function ScannerBase({
         });
         try {
           const ZXing = await loadZXing();
-          const hints = new Map();
-          hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E, ZXing.BarcodeFormat.QR_CODE]);
-          const reader = new ZXing.BrowserMultiFormatReader(hints);
+          const reader = new ZXing.BrowserMultiFormatReader();
           detRef.current = {
             _zxing: reader
           };
@@ -562,11 +560,19 @@ function ScannerBase({
                 canvas.width = videoRef.current.videoWidth;
                 canvas.height = videoRef.current.videoHeight;
                 ctx2d.drawImage(videoRef.current, 0, 0);
+                // Converte RGBA → RGB para ZXing
                 const imgData = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
-                const luminance = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
+                const rgba = imgData.data;
+                const rgb = new Uint8ClampedArray(canvas.width * canvas.height * 3);
+                for (let p = 0, r = 0; p < rgba.length; p += 4, r += 3) {
+                  rgb[r] = rgba[p];
+                  rgb[r + 1] = rgba[p + 1];
+                  rgb[r + 2] = rgba[p + 2];
+                }
+                const luminance = new ZXing.RGBLuminanceSource(rgb, canvas.width, canvas.height);
                 const binary = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
                 try {
-                  const result = reader.decodeBitmap(binary);
+                  const result = new ZXing.MultiFormatReader().decode(binary);
                   if (result) {
                     stopAll();
                     beep();
@@ -805,12 +811,83 @@ function ProductSheet({
   const photoRef = useRef(null);
   const photoGalRef = useRef(null);
   const [scanBC, setScanBC] = useState(false);
-  const handlePhoto = e => {
+  const handlePhoto = async e => {
     var _e$target$files;
     const file = (_e$target$files = e.target.files) === null || _e$target$files === void 0 ? void 0 : _e$target$files[0];
     if (!file) return;
+    const key = localStorage.getItem('_sb_key') || "";
+    // Tenta upload para Supabase Storage
+    if (key && SUPABASE_URL) {
+      try {
+        // Comprime a imagem antes de enviar
+        const compressed = await new Promise(res => {
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          img.onload = () => {
+            const MAX = 800;
+            let w = img.width,
+              h = img.height;
+            if (w > MAX) {
+              h = Math.round(h * MAX / w);
+              w = MAX;
+            }
+            if (h > MAX) {
+              w = Math.round(w * MAX / h);
+              h = MAX;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            canvas.toBlob(blob => res(blob), 'image/jpeg', 0.75);
+            URL.revokeObjectURL(url);
+          };
+          img.src = url;
+        });
+        const filename = `prod_${Date.now()}.jpg`;
+        const r = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${filename}`, {
+          method: 'POST',
+          headers: {
+            'apikey': key,
+            'Authorization': 'Bearer ' + key,
+            'Content-Type': 'image/jpeg',
+            'x-upsert': 'true'
+          },
+          body: compressed
+        });
+        if (r.ok) {
+          const url = `${SUPABASE_URL}/storage/v1/object/public/fotos/${filename}`;
+          set("photo", url);
+          return;
+        }
+      } catch (err) {
+        console.warn('[PDV] Storage falhou, usando base64:', err.message);
+      }
+    }
+    // Fallback: base64 (comprimido)
     const r = new FileReader();
-    r.onload = ev => set("photo", ev.target.result);
+    r.onload = async ev => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 600;
+        let w = img.width,
+          h = img.height;
+        if (w > MAX) {
+          h = Math.round(h * MAX / w);
+          w = MAX;
+        }
+        if (h > MAX) {
+          w = Math.round(w * MAX / h);
+          h = MAX;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        set("photo", canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.src = ev.target.result;
+    };
     r.readAsDataURL(file);
   };
   const margemPDV = form.price && form.costPrice && +form.costPrice > 0 ? ((+form.price - +form.costPrice) / +form.costPrice * 100).toFixed(1) : null;
