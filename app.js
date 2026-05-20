@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 20/05/2026, 11:39:17 */
+/* PDV Pro v1.0 - Compilado em 20/05/2026, 12:08:27 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -38,7 +38,7 @@ const save = (k, v) => {
 // ── BANCO DE DADOS: SERVIDOR É A FONTE ÚNICA DE VERDADE ───────────────────────
 // ── SUPABASE DIRETO ──────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://jyrugkklsacswgysjser.supabase.co";
-const _SB_KEY = () => localStorage.getItem('_sb_key') || "";
+const _SB_KEY = () => localStorage.getItem('_sb_key') || sessionStorage.getItem('_sb_key') || "";
 const _SB_H = () => ({
   'Content-Type': 'application/json',
   'apikey': _SB_KEY(),
@@ -1707,6 +1707,7 @@ function KeySetupScreen({
       });
       if (r.ok) {
         localStorage.setItem('_sb_key', key.trim());
+        sessionStorage.setItem('_sb_key', key.trim());
         setMsg("✅ Conectado!");
         setTimeout(() => onDone(), 1000);
       } else {
@@ -1811,20 +1812,25 @@ function KeySetupScreen({
       color: msg.startsWith("✅") ? "#22c55e" : "#ff6b6b",
       textAlign: "center"
     }
-  }, msg), localStorage.getItem('_sb_key') && /*#__PURE__*/React.createElement("button", {
-    onClick: onDone,
+  }, msg), /*#__PURE__*/React.createElement("div", {
     style: {
-      width: "100%",
-      marginTop: 8,
-      padding: 10,
-      background: "transparent",
-      border: "1px solid #1E2245",
-      borderRadius: 10,
+      marginTop: 16,
+      padding: 12,
+      background: "#0F1220",
+      borderRadius: 8,
+      fontSize: 11,
       color: "#5A6080",
-      fontSize: 13,
-      cursor: "pointer"
+      lineHeight: 1.6
     }
-  }, "Usar chave salva")));
+  }, /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: "#e8e9f0"
+    }
+  }, "Onde encontrar a chave:"), /*#__PURE__*/React.createElement("br", null), "Supabase \u2192 Configura\xE7\xF5es \u2192 Chaves de API \u2192", /*#__PURE__*/React.createElement("br", null), "aba \"Legadas\" \u2192 copie a chave ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: "#E8682A"
+    }
+  }, "anon"))));
 }
 function LoginScreen({
   onLogin,
@@ -7606,6 +7612,11 @@ function CatSheet({
 function PDVApp() {
   var _NAV$find;
   const [keyReady, setKeyReady] = useState(!!localStorage.getItem('_sb_key'));
+  // Re-verifica a chave a cada vez que o app carrega
+  useEffect(() => {
+    const k = localStorage.getItem('_sb_key');
+    if (!k) setKeyReady(false);
+  }, []);
   const [currentUser, setCurrentUser] = useState(() => {
     const u = load("pdv_session", null);
     // Sempre atualiza permissões do admin ao carregar sessão
