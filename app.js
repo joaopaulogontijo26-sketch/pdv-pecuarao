@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 21/05/2026, 12:36:20 */
+/* PDV Pro v1.0 - Compilado em 21/05/2026, 15:14:27 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -4159,7 +4159,7 @@ function AtacadoPage({
       lastVisit: todayStr()
     } : c));
     // Cria pedido de entrega automaticamente
-    const pedidosAtuais = load("pdv_entregas", []);
+    const pedidosAtuais = pedidos || [];
     const enderecoEntrega = isAvulso ? [avRua && avRua + (avNum ? ", " + avNum : ""), avBairro, avCidade].filter(Boolean).join(" · ") : endCli;
     const novoPedido = {
       id: uid(),
@@ -4681,18 +4681,12 @@ function AtacadoPage({
       ...S.lbl,
       marginBottom: 5
     }
-  }, "Cliente"), /*#__PURE__*/React.createElement("select", {
-    style: {
-      ...S.input,
-      marginBottom: 10
-    },
+  }, "Cliente"), /*#__PURE__*/React.createElement(CustomerSearch, {
+    customers: customers,
     value: cliente,
-    onChange: e => setCliente(e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "Avulso"
-  }, "\u2014 Cliente Avulso \u2014"), customers.map(c => /*#__PURE__*/React.createElement("option", {
-    key: c.id
-  }, c.name))), /*#__PURE__*/React.createElement("div", {
+    onChange: setCliente,
+    S: S
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.lbl,
       marginBottom: 5
@@ -6268,9 +6262,22 @@ function EntregasPage({
   S,
   sales,
   customers,
-  notify
+  notify,
+  pedidos: pedidosProp,
+  persistE: persistEProp,
+  onReload
 }) {
-  const [pedidos, setPedidos] = useState(() => load("pdv_entregas", []));
+  const [pedidos, setPedidos] = useState(() => pedidosProp || load("pdv_entregas", []));
+  useEffect(() => {
+    if (pedidosProp) setPedidos(pedidosProp);
+  }, [pedidosProp]);
+  const persistE = v => {
+    setPedidos(v);
+    if (persistEProp) persistEProp(v);else {
+      save("pdv_entregas", v);
+      syncSave("entregas", v);
+    }
+  };
   const [tab, setTab] = useState("pedido");
   const [newPedido, setNewPedido] = useState(false);
   const [obsEdit, setObsEdit] = useState({});
@@ -6286,10 +6293,6 @@ function EntregasPage({
     ...f,
     [k]: v
   }));
-  const persistE = v => {
-    setPedidos(v);
-    syncSave("entregas", v);
-  };
   const STATUS = [{
     id: "pedido",
     label: "Pedido",
@@ -6439,19 +6442,35 @@ function EntregasPage({
       border: "1px solid " + (tab === st.id ? st.border : "#1E2245"),
       color: tab === st.id ? st.color : "#6a6d80"
     }
-  }, st.emoji, " ", st.label, " ", counts[st.id] > 0 ? "(" + counts[st.id] + ")" : ""))), /*#__PURE__*/React.createElement("button", {
+  }, st.emoji, " ", st.label, " ", counts[st.id] > 0 ? "(" + counts[st.id] + ")" : ""))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setNewPedido(true),
     style: {
       ...S.btn("primary"),
-      width: "100%",
+      flex: 1,
       justifyContent: "center",
-      marginBottom: 14,
       padding: "11px"
     }
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "plus",
     size: 15
-  }), " Novo Pedido de Entrega"), filtered.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+  }), " Novo Pedido de Entrega"), onReload && /*#__PURE__*/React.createElement("button", {
+    onClick: async () => {
+      notify("Atualizando...");
+      const ok = await onReload();
+      if (ok) notify("Entregas atualizadas! ✓");
+    },
+    style: {
+      ...S.btn("ghost"),
+      padding: "11px 14px",
+      fontSize: 13
+    }
+  }, "\uD83D\uDD04")), filtered.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
     icon: ST[tab].emoji,
     title: "Nenhum pedido " + ST[tab].label.toLowerCase(),
     desc: tab === "pedido" ? "Crie um novo pedido acima." : "Mova pedidos para esta fase."
@@ -7768,7 +7787,6 @@ function PDVApp() {
   const [serverOk, setServerOk] = useState(null);
   const persistP = v => {
     setProducts(v);
-    _lastSaveRef.current = Date.now();
     syncSave("products", v);
   };
   const persistC = v => {
@@ -7824,7 +7842,7 @@ function PDVApp() {
 
   // ── SYNC: carrega do servidor e polling 8s ───────────────────────────────
   const _syncRef = useRef(false);
-  const _lastSaveRef = useRef(0);
+  // Carrega dados do Supabase uma vez ao iniciar (sem polling)
   if (!_syncRef.current) {
     _syncRef.current = true;
     syncLoad().then(async data => {
@@ -7832,12 +7850,13 @@ function PDVApp() {
         if (Array.isArray(data.products)) setProducts(data.products);
         if (Array.isArray(data.customers)) setCustomers(data.customers);
         if (Array.isArray(data.sales)) setSales(data.sales);
+        if (Array.isArray(data.entregas)) setPedidos(data.entregas);
+        if (Array.isArray(data.fornecedores)) setFornecedores(data.fornecedores);
         if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
         setServerOk(true);
       } else {
         setServerOk(false);
       }
-      // Carrega usuários do Supabase
       const sbUsers = await loadUsersFromSupabase();
       if (sbUsers && sbUsers.length > 0) setUsers(sbUsers);
       setAppReady(true);
@@ -7845,20 +7864,27 @@ function PDVApp() {
       setServerOk(false);
       setAppReady(true);
     });
-    const iv = setInterval(() => {
-      if (Date.now() - _lastSaveRef.current < 10000) return;
-      syncLoad().then(data => {
-        if (data) {
-          if (Array.isArray(data.products)) setProducts(data.products);
-          if (Array.isArray(data.customers)) setCustomers(data.customers);
-          if (Array.isArray(data.sales)) setSales(data.sales);
-          if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
-          setServerOk(true);
-        } else setServerOk(false);
-      });
-    }, 30000);
-    window.addEventListener('beforeunload', () => clearInterval(iv));
   }
+  // Recarrega dados manualmente (botão Atualizar)
+  const reloadFromSupabase = async (showNotify = true) => {
+    try {
+      const data = await syncLoad();
+      if (data) {
+        if (Array.isArray(data.products)) setProducts(data.products);
+        if (Array.isArray(data.customers)) setCustomers(data.customers);
+        if (Array.isArray(data.sales)) setSales(data.sales);
+        if (Array.isArray(data.entregas)) setPedidos(data.entregas);
+        if (Array.isArray(data.fornecedores)) setFornecedores(data.fornecedores);
+        if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
+        setServerOk(true);
+        if (showNotify) notify('Dados atualizados! ✓');
+        return true;
+      }
+    } catch (e) {
+      console.warn('reload error', e);
+    }
+    return false;
+  };
   const saveProduct = form => {
     if (!form.name || !form.price || form.stock === "") {
       notify("Preencha todos os campos!", "error");
@@ -9418,7 +9444,10 @@ function PDVApp() {
     S: S,
     sales: sales,
     customers: customers,
-    notify: notify
+    notify: notify,
+    pedidos: pedidos,
+    persistE: persistE,
+    onReload: reloadFromSupabase
   }), page === "usuarios" && /*#__PURE__*/React.createElement(UsersPage, {
     S: S,
     notify: notify,
