@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 20/05/2026, 18:59:38 */
+/* PDV Pro v1.0 - Compilado em 21/05/2026, 12:36:20 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -2876,6 +2876,132 @@ function UsersPage({
 }
 
 // ── CART DRAWER ────────────────────────────────────────────────────────────────
+function CustomerSearch({
+  customers,
+  value,
+  onChange,
+  S
+}) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const filtered = q.trim() ? customers.filter(c => c.name.toLowerCase().includes(q.toLowerCase()) || (c.phone || '').includes(q) || (c.cpf || '').includes(q)) : customers;
+  const selected = value === 'Avulso' ? null : customers.find(c => c.name === value);
+  useEffect(() => {
+    const handler = e => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+  return /*#__PURE__*/React.createElement("div", {
+    ref: ref,
+    style: {
+      position: 'relative',
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: () => {
+      setOpen(!open);
+      setQ('');
+    },
+    style: {
+      ...S.input,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      cursor: 'pointer',
+      userSelect: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: selected ? '#e8e9f0' : '#5A6080'
+    }
+  }, selected ? selected.name : '— Cliente Avulso —'), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: '#5A6080'
+    }
+  }, "\u25BC")), open && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      zIndex: 999,
+      background: '#0F1220',
+      border: '1px solid #1E2245',
+      borderRadius: 10,
+      maxHeight: 260,
+      overflow: 'hidden',
+      boxShadow: '0 8px 32px rgba(0,0,0,.5)'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    autoFocus: true,
+    value: q,
+    onChange: e => setQ(e.target.value),
+    placeholder: "\uD83D\uDD0D Buscar cliente...",
+    style: {
+      width: '100%',
+      padding: '10px 14px',
+      background: '#151830',
+      border: 'none',
+      borderBottom: '1px solid #1E2245',
+      color: '#e8e9f0',
+      fontSize: 13,
+      outline: 'none',
+      boxSizing: 'border-box'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowY: 'auto',
+      maxHeight: 200
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: () => {
+      onChange('Avulso');
+      setOpen(false);
+    },
+    style: {
+      padding: '10px 14px',
+      cursor: 'pointer',
+      fontSize: 13,
+      color: '#5A6080',
+      borderBottom: '1px solid #1E2245',
+      background: value === 'Avulso' ? '#1E2245' : 'transparent'
+    }
+  }, "\u2014 Cliente Avulso \u2014"), filtered.slice(0, 50).map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.id,
+    onClick: () => {
+      onChange(c.name);
+      setOpen(false);
+      setQ('');
+    },
+    style: {
+      padding: '10px 14px',
+      cursor: 'pointer',
+      fontSize: 13,
+      color: '#e8e9f0',
+      borderBottom: '1px solid #1E2245',
+      background: value === c.name ? '#1E2245' : 'transparent'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 600
+    }
+  }, c.name), c.phone && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: '#5A6080'
+    }
+  }, c.phone))), filtered.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 14px',
+      color: '#5A6080',
+      fontSize: 13
+    }
+  }, "Nenhum cliente encontrado"))));
+}
 function CartDrawer({
   S,
   cart,
@@ -2984,18 +3110,12 @@ function CartDrawer({
       ...S.lbl,
       marginBottom: 6
     }
-  }, "Cliente"), /*#__PURE__*/React.createElement("select", {
-    style: {
-      ...S.input,
-      marginBottom: 12
-    },
+  }, "Cliente"), /*#__PURE__*/React.createElement(CustomerSearch, {
+    customers: customers,
     value: saleCustomer,
-    onChange: e => setSaleCustomer(e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "Avulso"
-  }, "\u2014 Cliente Avulso \u2014"), customers.map(c => /*#__PURE__*/React.createElement("option", {
-    key: c.id
-  }, c.name))), /*#__PURE__*/React.createElement("div", {
+    onChange: setSaleCustomer,
+    S: S
+  }), /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.lbl,
       marginBottom: 6
@@ -7648,6 +7768,7 @@ function PDVApp() {
   const [serverOk, setServerOk] = useState(null);
   const persistP = v => {
     setProducts(v);
+    _lastSaveRef.current = Date.now();
     syncSave("products", v);
   };
   const persistC = v => {
@@ -7703,6 +7824,7 @@ function PDVApp() {
 
   // ── SYNC: carrega do servidor e polling 8s ───────────────────────────────
   const _syncRef = useRef(false);
+  const _lastSaveRef = useRef(0);
   if (!_syncRef.current) {
     _syncRef.current = true;
     syncLoad().then(async data => {
@@ -7724,6 +7846,7 @@ function PDVApp() {
       setAppReady(true);
     });
     const iv = setInterval(() => {
+      if (Date.now() - _lastSaveRef.current < 10000) return;
       syncLoad().then(data => {
         if (data) {
           if (Array.isArray(data.products)) setProducts(data.products);
