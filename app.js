@@ -1,4 +1,4 @@
-/* PDV Pro v1.0 - Compilado em 21/05/2026, 15:14:27 */
+/* PDV Pro v1.0 - Compilado em 21/05/2026, 15:35:32 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -7776,14 +7776,17 @@ function PDVApp() {
     return u;
   });
   const [page, setPage] = useState("dashboard");
-  if (!keyReady) return /*#__PURE__*/React.createElement(KeySetupScreen, {
-    onDone: () => setKeyReady(true)
-  });
   const [sideOpen, setSideOpen] = useState(false);
   const [products, setProducts] = useState(() => load("pdv_products", []));
   const [customers, setCustomers] = useState(() => load("pdv_customers", []));
   const [sales, setSales] = useState(() => load("pdv_sales", []));
+  const [pedidos, setPedidos] = useState(() => load("pdv_entregas", []));
+  const [fornecedores, setFornecedores] = useState(() => load("pdv_fornecedores", []));
   const [appReady, setAppReady] = useState(false);
+  // Todos os hooks acima — return condicional só depois
+  if (!keyReady) return /*#__PURE__*/React.createElement(KeySetupScreen, {
+    onDone: () => setKeyReady(true)
+  });
   const [serverOk, setServerOk] = useState(null);
   const persistP = v => {
     setProducts(v);
@@ -7796,6 +7799,14 @@ function PDVApp() {
   const persistS = v => {
     setSales(v);
     syncSave("sales", v);
+  };
+  const persistE = v => {
+    setPedidos(v);
+    syncSave("entregas", v);
+  };
+  const persistForn = v => {
+    setFornecedores(v);
+    syncSave("fornecedores", v);
   };
   const [cart, setCart] = useState([]);
   const [saleCustomer, setSaleCustomer] = useState("Avulso");
