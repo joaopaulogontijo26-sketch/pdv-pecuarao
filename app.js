@@ -248,7 +248,10 @@ const PATHS = {
   sliders: "M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6",
   image: "M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z M8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z",
   trending: "M23 6l-9.5 9.5-5-5L1 18",
-  logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9"
+  logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9",
+  kanban: "M3 3h7v9H3z M14 3h7v5h-7z M14 12h7v9h-7z M3 16h7v5H3z",
+  bot: "M12 2a2 2 0 0 1 2 2v1h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4V4a2 2 0 0 1 2-2z M8 12h.01 M16 12h.01 M9 16s1 1 3 1 3-1 3-1",
+  inbox: "M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
 };
 const Icon = ({
   name,
@@ -8320,6 +8323,21 @@ function PDVApp() {
     label: "Fornecedores",
     icon: "users",
     perm: perm("fornecedores") || (currentUser === null || currentUser === void 0 ? void 0 : currentUser.role) === "admin"
+  }, {
+    id: "crm",
+    label: "CRM & Kanban",
+    icon: "kanban",
+    perm: (currentUser === null || currentUser === void 0 ? void 0 : currentUser.role) === "admin"
+  }, {
+    id: "inbox",
+    label: "Inbox WhatsApp",
+    icon: "inbox",
+    perm: (currentUser === null || currentUser === void 0 ? void 0 : currentUser.role) === "admin"
+  }, {
+    id: "agente",
+    label: "Agente IA (Tião)",
+    icon: "bot",
+    perm: (currentUser === null || currentUser === void 0 ? void 0 : currentUser.role) === "admin"
   }].filter(n => n.perm);
   const goTo = id => {
     setPage(id);
@@ -9475,6 +9493,16 @@ function PDVApp() {
     S: S,
     products: products,
     persistP: persistP,
+    notify: notify
+  }), page === "crm" && window.CRMPage && /*#__PURE__*/React.createElement(window.CRMPage, {
+    S: S,
+    customers: customers,
+    notify: notify
+  }), page === "inbox" && window.InboxPage && /*#__PURE__*/React.createElement(window.InboxPage, {
+    S: S,
+    notify: notify
+  }), page === "agente" && window.AgentePage && /*#__PURE__*/React.createElement(window.AgentePage, {
+    S: S,
     notify: notify
   }), page === "estoque" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
