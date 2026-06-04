@@ -11,7 +11,7 @@
   const EVO_KEY      = "09C2AA929F60-4FD0-BD8A-E4C5F5F29FFC";
   const EVO_INST     = "pecuarao";
   const N8N_URL      = "https://n8n.pecuaraogontijo.shop";
-  const N8N_KEY      = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNDQ1YTM2Mi1mNGJkLTRlYWYtYWRlNi0wZWU2MzNlNmQ3ZjciLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiZmQ2NDhjNjQtYTNlNy00YTM1LWIxZjQtMDU2NWRmM2ZlZjQ1IiwiaWF0IjoxNzgwNTkzMTM4LCJleHAiOjE3ODMxMzc2MDB9.szvq5tGLUg5FQK5vbx3209O--o_uXaVoCJbl1A8vSjk";
+  const N8N_KEY      = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNDQ1YTM2Mi1mNGJkLTRlYWYtYWRlNi0wZWU2MzNlNmQ3ZjciLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiYzEzZTE5ZjctNzcwNC00NjJmLWI1MzctMjMxZDgxZWYwYmQxIiwiaWF0IjoxNzgwNTk2OTc4LCJleHAiOjE3ODMxMzc2MDB9.wieLuibWOOiYeGkpJCzRu3p2zrUO3okSTm0ochC-t7E";
   const N8N_WF_ID    = "asGtimXyV6fUaFnA";
   const SUPABASE_URL = "https://jyrugkklsacswgysjser.supabase.co";
   const _SB_KEY      = () => localStorage.getItem('_sb_key') || sessionStorage.getItem('_sb_key') || "";
