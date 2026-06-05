@@ -12,21 +12,11 @@
   const N8N_URL      = "https://n8n.pecuaraogontijo.shop";
   const N8N_KEY      = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNDQ1YTM2Mi1mNGJkLTRlYWYtYWRlNi0wZWU2MzNlNmQ3ZjciLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiYzEzZTE5ZjctNzcwNC00NjJmLWI1MzctMjMxZDgxZWYwYmQxIiwiaWF0IjoxNzgwNTk2OTc4LCJleHAiOjE3ODMxMzc2MDB9.wieLuibWOOiYeGkpJCzRu3p2zrUO3okSTm0ochC-t7E";
   const N8N_WF_ID    = "asGtimXyV6fUaFnA";
-  const SUPABASE_URL = "https://jyrugkklsacswgysjser.supabase.co";
-  const _SB_KEY      = () => localStorage.getItem('_sb_key') || sessionStorage.getItem('_sb_key') || "";
-  const _SB_H        = () => ({
-    'Content-Type': 'application/json',
-    'apikey': _SB_KEY(),
-    'Authorization': 'Bearer ' + _SB_KEY(),
-    'Prefer': 'return=representation'
-  });
-
-  // ── REACT ALIASES ────────────────────────────────────────────────────────────
+        // ── REACT ALIASES ────────────────────────────────────────────────────────────
   const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
   // ── UTILITÁRIOS ──────────────────────────────────────────────────────────────
-  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const fmtTime = ts => {
+    const fmtTime = ts => {
     if (!ts) return "";
     const d = new Date(ts);
     return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
