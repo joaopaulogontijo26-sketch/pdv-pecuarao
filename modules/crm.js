@@ -1,16 +1,11 @@
-/* PDV Pro — crm.js
-   CRM + Kanban
-*/
+/* PDV Pro — crm.js | CRM + Kanban */
 
 /* ============================================================
    CRM Module v1.0 — Pecuarão Gontijo
    Módulos: CRM + Kanban | Inbox WhatsApp | Agente IA (n8n)
    Integra com: Supabase · Evolution API · n8n.cloud
    ============================================================ */
-(function () {
-  "use strict";
-
-  // ── CREDENCIAIS ──────────────────────────────────────────────────────────────
+// ── CREDENCIAIS ──────────────────────────────────────────────────────────────
   const EVO_URL      = "https://evo.pecuaraogontijo.shop";
   const EVO_KEY      = "09C2AA929F60-4FD0-BD8A-E4C5F5F29FFC";
   const EVO_INST     = "pecuarao";
@@ -582,10 +577,5 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // ABA 2 — INBOX WHATSAPP
-  // ════════════════════════════════════════════════════════════════════════════
-
-  
 window.CRMPage = CRMPage;
 console.log("[PDV] crm.js carregado");

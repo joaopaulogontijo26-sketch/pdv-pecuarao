@@ -2513,8 +2513,6 @@ function PDVApp() {
     }
   })));
 }
-  // Expõe o app para o index.html
-  window.PDVApp = PDVApp;
-  console.log("[PDV] App carregado com sucesso");
-})();
+// Expõe o app para o index.html
+window.PDVApp = PDVApp;
 console.log("[PDV] app-main.js carregado");

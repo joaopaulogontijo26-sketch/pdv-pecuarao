@@ -264,28 +264,7 @@ function CustomerSheet({
   }), " ", initial ? "Salvar" : "Cadastrar")));
 }
 
-// ── SISTEMA DE LOGIN ───────────────────────────────────────────────────────────
-const ADMIN_PERMS = {
-  pdv: true,
-  atacado: true,
-  estoque: true,
-  clientes: true,
-  historico: true,
-  importar: true,
-  entregas: true,
-  lista: true,
-  editarProdutos: true,
-  excluirVendas: true,
-  fornecedores: true
-};
-const DEFAULT_USERS = [{
-  id: "admin",
-  name: "Administrador",
-  pin: "1234",
-  role: "admin",
-  permissions: ADMIN_PERMS,
-  comissao: 0
-}];
+
 const loadUsers = () => {
   const u = load("pdv_users", null);
   if (!u || u.length === 0) return DEFAULT_USERS;

@@ -1,16 +1,11 @@
-/* PDV Pro — inbox.js
-   Inbox WhatsApp — Evolution API
-*/
+/* PDV Pro — inbox.js | Inbox WhatsApp */
 
 /* ============================================================
    CRM Module v1.0 — Pecuarão Gontijo
    Módulos: CRM + Kanban | Inbox WhatsApp | Agente IA (n8n)
    Integra com: Supabase · Evolution API · n8n.cloud
    ============================================================ */
-(function () {
-  "use strict";
-
-  // ── CREDENCIAIS ──────────────────────────────────────────────────────────────
+// ── CREDENCIAIS ──────────────────────────────────────────────────────────────
   const EVO_URL      = "https://evo.pecuaraogontijo.shop";
   const EVO_KEY      = "09C2AA929F60-4FD0-BD8A-E4C5F5F29FFC";
   const EVO_INST     = "pecuarao";
@@ -253,6 +248,11 @@
     { id: "perdido",    label: "Perdido ✗",        color: "#ff3b3b" }
   ];
 
+  
+  // ════════════════════════════════════════════════════════════════════════════
+  // ABA 2 — INBOX WHATSAPP
+  // ════════════════════════════════════════════════════════════════════════════
+
   function InboxPage({ S, notify }) {
     const [chats, setChats]       = useState([]);
     const [selChat, setSelChat]   = useState(null);
@@ -489,10 +489,5 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // ABA 3 — AGENTE IA (n8n)
-  // ════════════════════════════════════════════════════════════════════════════
-
-  
 window.InboxPage = InboxPage;
 console.log("[PDV] inbox.js carregado");

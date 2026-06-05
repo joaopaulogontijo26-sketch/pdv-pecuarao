@@ -1,16 +1,11 @@
-/* PDV Pro — agente.js
-   Agente IA Tião — n8n
-*/
+/* PDV Pro — agente.js | Agente IA Tião */
 
 /* ============================================================
    CRM Module v1.0 — Pecuarão Gontijo
    Módulos: CRM + Kanban | Inbox WhatsApp | Agente IA (n8n)
    Integra com: Supabase · Evolution API · n8n.cloud
    ============================================================ */
-(function () {
-  "use strict";
-
-  // ── CREDENCIAIS ──────────────────────────────────────────────────────────────
+// ── CREDENCIAIS ──────────────────────────────────────────────────────────────
   const EVO_URL      = "https://evo.pecuaraogontijo.shop";
   const EVO_KEY      = "09C2AA929F60-4FD0-BD8A-E4C5F5F29FFC";
   const EVO_INST     = "pecuarao";
@@ -252,6 +247,11 @@
     { id: "ganho",      label: "Ganho ✓",          color: "#4ade80" },
     { id: "perdido",    label: "Perdido ✗",        color: "#ff3b3b" }
   ];
+
+  
+  // ════════════════════════════════════════════════════════════════════════════
+  // ABA 3 — AGENTE IA (n8n)
+  // ════════════════════════════════════════════════════════════════════════════
 
   function AgentePage({ S, notify }) {
     const [wf, setWf]               = useState(null);
@@ -515,15 +515,5 @@
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // REGISTRO GLOBAL — injeta as páginas no PDV Pro
-  // ════════════════════════════════════════════════════════════════════════════
-
-  window.CRMPage    = CRMPage;
-  window.InboxPage  = InboxPage;
-  window.AgentePage = AgentePage;
-
-  console.log("[CRM Module] Carregado com sucesso — CRMPage, InboxPage, AgentePage disponíveis");
-})();
 window.AgentePage = AgentePage;
 console.log("[PDV] agente.js carregado");
