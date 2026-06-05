@@ -12,7 +12,6 @@ var useEffect = React.useEffect;
 var useCallback = React.useCallback;
 
 // ── LOJA ─────────────────────────────────────────────────────
-const LOGO_SRC = "https://joaopaulogontijo26-sketch.github.io/pdv-pecuarao/logo.jpg";
 const LOJA = {
   nome: "Pecuarão Gontijo",
   sub: "Depósito & Agropecuária",

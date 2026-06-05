@@ -393,7 +393,7 @@ function PDVApp() {
     const ext = numExtenso(total);
     return ["<div style='font-family:Arial,sans-serif;max-width:620px;margin:32px auto;border:2px solid #2D3A8C;border-radius:4px;padding:0;page-break-before:always'>",
     // Cabeçalho
-    "<div style='background:#2D3A8C;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center'>", "  <div style='display:flex;align-items:center;gap:12px'><img src='" + LOGO_SRC + "' alt='logo' style='height:40px'/>" + "<div><div style='font-size:16px;font-weight:900;letter-spacing:2px'>NOTA PROMISSÓRIA</div>" + "<div style='font-size:10px;opacity:.8'>Pecuarão Gontijo - Depósito & Agropecuária</div></div></div>", "  <div style='text-align:right;font-size:11px'>Nº: " + (numRef || "_______") + "<br>Emissão: " + new Date().toLocaleDateString("pt-BR") + "</div>", "</div>",
+    "<div style='background:#2D3A8C;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center'>", "  <div style='display:flex;align-items:center;gap:12px'><div style='width:40px;height:40px;background:#fff3;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px'>🐄</div><div><div style='font-size:16px;font-weight:900;letter-spacing:2px'>NOTA PROMISSÓRIA</div><div style='font-size:10px;opacity:.8'>Pecuarão Gontijo - Depósito & Agropecuária</div></div></div>", "  <div style='text-align:right;font-size:11px'>Nº: " + (numRef || "_______") + "<br>Emissão: " + new Date().toLocaleDateString("pt-BR") + "</div>", "</div>",
     // Valor e vencimento
     "<div style='display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #ddd'>", "  <div style='padding:14px 20px;border-right:1px solid #ddd'>", "    <div style='font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px'>Valor</div>", "    <div style='font-size:22px;font-weight:900;color:#c0392b'>" + fmt(total) + "</div>", "  </div>", "  <div style='padding:14px 20px'>", "    <div style='font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px'>Vencimento</div>", "    <div style='font-size:16px;font-weight:700'>_____ / _____ / __________</div>", "  </div>", "</div>",
     // Texto legal
@@ -410,7 +410,7 @@ function PDVApp() {
     const endCli = cliente ? [cliente.rua && cliente.rua + (cliente.numero ? ", " + cliente.numero : ""), cliente.bairro, cliente.cidade && cliente.cidade + (cliente.uf ? " - " + cliente.uf : "")].filter(Boolean).join(", ") : "";
     const promissoria = isPrazo ? gerarNotaPromissoria((cliente === null || cliente === void 0 ? void 0 : cliente.name) || s.customer, (cliente === null || cliente === void 0 ? void 0 : cliente.cpf) || "", endCli, (cliente === null || cliente === void 0 ? void 0 : cliente.phone) || "", s.total, dataStr, s.id.slice(-6).toUpperCase()) : "";
     const css = "body{font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#111;}table{width:100%;border-collapse:collapse;font-size:13px;}th{background:#f3f4f6;padding:7px 8px;text-align:left;font-size:11px;text-transform:uppercase;}td{padding:7px 8px;border-bottom:1px solid #f3f4f6;}.total{font-size:17px;font-weight:700;text-align:right;margin-top:8px;color:#e74c3c;}@media print{body{max-width:100%;padding:10px}}";
-    return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Recibo</title><style>" + css + "</style></head><body>" + "<div style='background:#2D3A8C;color:#fff;padding:14px;text-align:center;border-radius:8px;margin-bottom:16px'>" + "<img src='" + LOGO_SRC + "' alt='logo' style='height:48px;display:block;margin:0 auto 8px'/>" + "<div style='font-size:16px;font-weight:800;letter-spacing:1px'>RECIBO DE VENDA</div>" + "<div style='font-size:11px;margin-top:4px'>" + s.date + " " + s.time + " · Nº " + s.id.slice(-8).toUpperCase() + "</div></div>" + "<div style='background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:14px'>" + "<div style='font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px'>Cliente</div>" + "<div style='font-weight:700;font-size:14px'>" + ((cliente === null || cliente === void 0 ? void 0 : cliente.name) || s.customer) + "</div>" + (cliente !== null && cliente !== void 0 && cliente.cpf ? "<div style='font-size:12px;color:#666'>CPF/CNPJ: " + cliente.cpf + "</div>" : "") + (cliente !== null && cliente !== void 0 && cliente.phone ? "<div style='font-size:12px;color:#666'>Tel: " + cliente.phone + "</div>" : "") + (endCli ? "<div style='font-size:12px;color:#666'>" + endCli + "</div>" : "") + "</div>" + "<table><thead><tr><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead><tbody>" + itemRows + "</tbody></table>" + "<div class='total'>TOTAL: " + fmt(s.total) + "</div>" + "<div style='display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#666'>" + "<span>Pagamento: <b>" + s.payment + "</b></span>" + (isPrazo ? "<span style='color:#c0392b;font-weight:700'>⚠️ A PRAZO</span>" : "") + "</div>" + "<div style='margin-top:20px;border-top:2px solid #2D3A8C;padding-top:14px;text-align:center'>" + "<div style='font-size:13px;font-weight:700;color:#2D3A8C'>Pecuarão Gontijo</div>" + "<div style='font-size:11px;color:#666'>Rua Guarani, 461 - Jardim Candidés - Divinópolis/MG</div>" + "<div style='font-size:11px;color:#666'>📞 (37) 99922-1020 · CNPJ: 62.321.434/0001-40</div>" + "<div style='font-size:12px;margin-top:8px;color:#E8682A;font-style:italic'>Obrigado pela preferência! 🐾</div>" + "</div>" + promissoria + "</body></html>";
+    return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Recibo</title><style>" + css + "</style></head><body>" + "<div style='background:#2D3A8C;color:#fff;padding:14px;text-align:center;border-radius:8px;margin-bottom:16px'>" + "<div style='font-size:16px;font-weight:800;letter-spacing:1px'>RECIBO DE VENDA</div>" + "<div style='font-size:11px;margin-top:4px'>" + s.date + " " + s.time + " · Nº " + s.id.slice(-8).toUpperCase() + "</div></div>" + "<div style='background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:14px'>" + "<div style='font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px'>Cliente</div>" + "<div style='font-weight:700;font-size:14px'>" + ((cliente === null || cliente === void 0 ? void 0 : cliente.name) || s.customer) + "</div>" + (cliente !== null && cliente !== void 0 && cliente.cpf ? "<div style='font-size:12px;color:#666'>CPF/CNPJ: " + cliente.cpf + "</div>" : "") + (cliente !== null && cliente !== void 0 && cliente.phone ? "<div style='font-size:12px;color:#666'>Tel: " + cliente.phone + "</div>" : "") + (endCli ? "<div style='font-size:12px;color:#666'>" + endCli + "</div>" : "") + "</div>" + "<table><thead><tr><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead><tbody>" + itemRows + "</tbody></table>" + "<div class='total'>TOTAL: " + fmt(s.total) + "</div>" + "<div style='display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#666'>" + "<span>Pagamento: <b>" + s.payment + "</b></span>" + (isPrazo ? "<span style='color:#c0392b;font-weight:700'>⚠️ A PRAZO</span>" : "") + "</div>" + "<div style='margin-top:20px;border-top:2px solid #2D3A8C;padding-top:14px;text-align:center'>" + "<div style='font-size:13px;font-weight:700;color:#2D3A8C'>Pecuarão Gontijo</div>" + "<div style='font-size:11px;color:#666'>Rua Guarani, 461 - Jardim Candidés - Divinópolis/MG</div>" + "<div style='font-size:11px;color:#666'>📞 (37) 99922-1020 · CNPJ: 62.321.434/0001-40</div>" + "<div style='font-size:12px;margin-top:8px;color:#E8682A;font-style:italic'>Obrigado pela preferência! 🐾</div>" + "</div>" + promissoria + "</body></html>";
   };
   const imprimirRecibo = s => {
     const cliente = customers.find(c => c.name === s.customer);
@@ -727,17 +727,7 @@ function PDVApp() {
       justifyContent: "center",
       fontFamily: "'Sora',sans-serif"
     }
-  }, /*#__PURE__*/React.createElement("img", {
-    src: {
-      LOGO_SRC
-    },
-    alt: "Pecuar\xE3o Gontijo",
-    style: {
-      height: 80,
-      objectFit: "contain",
-      marginBottom: 16
-    }
-  }), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       color: "#5A6080",
@@ -800,17 +790,7 @@ function PDVApp() {
       borderBottom: "1px solid #1a1c2e",
       marginBottom: 10
     }
-  }, /*#__PURE__*/React.createElement("img", {
-    src: {
-      LOGO_SRC
-    },
-    alt: "Pecuar\xE3o",
-    style: {
-      height: 30,
-      objectFit: "contain",
-      maxWidth: 120
-    }
-  }), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: "#3a3d50",

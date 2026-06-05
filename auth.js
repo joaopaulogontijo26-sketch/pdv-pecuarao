@@ -51,15 +51,7 @@ function KeySetupScreen({
       padding: 24,
       fontFamily: "'Sora',sans-serif"
     }
-  }, /*#__PURE__*/React.createElement("img", {
-    src: LOGO_SRC,
-    alt: "Pecuar\xE3o Gontijo",
-    style: {
-      height: 70,
-      objectFit: "contain",
-      marginBottom: 16
-    }
-  }), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 18,
       fontWeight: 800,
