@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0A0C1E">
+  <title>PDV Pro — Pecuarão Gontijo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0A0C1E;color:#e8e9f0;font-family:'Sora',sans-serif}
+    #root{min-height:100vh}
+    #splash{position:fixed;inset:0;background:#0A0C1E;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .4s}
+    #splash img{width:90px;margin-bottom:16px;border-radius:16px}
+    #splash .loading-bar{width:180px;height:3px;background:#1a1c2e;border-radius:99px;overflow:hidden;margin-top:20px}
+    #splash .loading-fill{height:100%;background:linear-gradient(90deg,#2D3A8C,#E8682A);border-radius:99px;animation:loadbar 1.8s ease-in-out infinite}
+    @keyframes loadbar{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    *::-webkit-scrollbar{width:4px;height:4px}
+    *::-webkit-scrollbar-track{background:#080a10}
+    *::-webkit-scrollbar-thumb{background:#1a1c2e;border-radius:4px}
+    input:focus,select:focus,textarea:focus{border-color:#E8682A!important;box-shadow:0 0 0 3px rgba(255,107,53,.1)}
+    select{appearance:none}
+    button:active{opacity:.75}
+    @keyframes popIn{from{transform:translateX(-50%) translateY(10px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+  </style>
+</head>
+<body>
+
+<!-- Splash Screen -->
+<div id="splash">
+  <img src="https://joaopaulogontijo26-sketch.github.io/pdv-pecuarao/logo.jpg" alt="Logo">
+  <div style="font-family:'Sora',sans-serif;font-size:18px;font-weight:800;color:#e8e9f0">PDV Pro</div>
+  <div style="font-family:'Sora',sans-serif;font-size:12px;color:#6a6d80;margin-top:4px">Pecuarão Gontijo</div>
+  <div class="loading-bar"><div class="loading-fill"></div></div>
+</div>
+
+<div id="root"></div>
+
+<!-- React 18 -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- ── MÓDULOS CORE (carregam imediatamente) ── -->
+<script src="modules/core.js"></script>
+<script src="modules/components.js"></script>
+<script src="modules/auth.js"></script>
+
+<!-- ── MÓDULOS PDV (carregam imediatamente) ── -->
+<script src="modules/estoque.js"></script>
+<script src="modules/clientes_sheet.js"></script>
+<script src="modules/pdv.js"></script>
+<script src="modules/atacado.js"></script>
+<script src="modules/entregas.js"></script>
+<script src="modules/historico.js"></script>
+<script src="modules/clientes.js"></script>
+<script src="modules/usuarios.js"></script>
+<script src="modules/fornecedores.js"></script>
+<script src="modules/lista.js"></script>
+<script src="modules/importar.js"></script>
+<script src="modules/dashboard.js"></script>
+
+<!-- ── APP PRINCIPAL ── -->
+<script src="modules/app-main.js"></script>
+
+<!-- ── MÓDULOS CRM/IA (lazy — carregam após 2s) ── -->
+<script>
+(function() {
+  var loaded = false;
+  function loadCRM() {
+    if (loaded) return;
+    loaded = true;
+    ['crm','inbox','agente'].forEach(function(m) {
+      var s = document.createElement('script');
+      s.src = 'modules/' + m + '.js';
+      s.onerror = function() { console.warn('[PDV] Falha ao carregar módulo:', m); };
+      document.head.appendChild(s);
+    });
+  }
+  // Carrega após 2s ou quando usuário clicar em CRM/Inbox/Agente
+  setTimeout(loadCRM, 2000);
+  window._loadCRM = loadCRM;
+})();
+</script>
+
+<!-- ── INICIALIZAÇÃO ── -->
+<script>
+(function() {
+  function hideSplash() {
+    var splash = document.getElementById('splash');
+    if (splash) { splash.style.opacity='0'; setTimeout(function(){ splash.style.display='none'; }, 400); }
+  }
+
+  function init() {
+    if (typeof PDVApp === 'undefined') {
+      setTimeout(init, 50);
+      return;
+    }
+    var root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(PDVApp));
+    setTimeout(hideSplash, 600);
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
