@@ -28,7 +28,7 @@ window.onerror = function(msg, src, line, col, err) {
 };
 </script>
 <script>
-/* PDV Pro v1.0 - Compilado em 17/06/2026, 15:02:39 */
+/* PDV Pro v1.0 - Compilado em 17/06/2026, 22:57:05 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -214,6 +214,55 @@ const applyPhotoCache = async products => {
     ...p,
     photo: map[p.id] || p.photo || ''
   }));
+};
+
+// Migra fotos base64 antigas para o Supabase Storage
+const migratePhotosToStorage = async (products, onProgress) => {
+  const key = _SB_KEY();
+  if (!key) return {
+    migrated: 0,
+    failed: 0
+  };
+  const toMigrate = products.filter(p => p.photo && p.photo.startsWith('data:image'));
+  let migrated = 0,
+    failed = 0;
+  const updated = [...products];
+  for (let i = 0; i < toMigrate.length; i++) {
+    const p = toMigrate[i];
+    try {
+      // Converte base64 para Blob
+      const res = await fetch(p.photo);
+      const blob = await res.blob();
+      const filename = `migrado_${p.id}_${Date.now()}.jpg`;
+      const r = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos/${filename}`, {
+        method: 'POST',
+        headers: {
+          'apikey': key,
+          'Authorization': 'Bearer ' + key,
+          'Content-Type': 'image/jpeg',
+          'x-upsert': 'true'
+        },
+        body: blob
+      });
+      if (r.ok) {
+        const url = `${SUPABASE_URL}/storage/v1/object/public/fotos/${filename}`;
+        const idx = updated.findIndex(u => u.id === p.id);
+        if (idx >= 0) updated[idx] = {
+          ...updated[idx],
+          photo: url
+        };
+        migrated++;
+      } else failed++;
+    } catch (_) {
+      failed++;
+    }
+    if (onProgress) onProgress(i + 1, toMigrate.length);
+  }
+  return {
+    migrated,
+    failed,
+    products: updated
+  };
 };
 const _toRow = {
   products: p => ({
@@ -10094,6 +10143,27 @@ function PDVApp() {
       persistP(updated);
     }
   }, "\uD83D\uDCF7 Fotos"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      ...S.btn("ghost"),
+      flexShrink: 0,
+      fontSize: 12,
+      padding: "9px 12px"
+    },
+    onClick: async () => {
+      const comBase64 = products.filter(p => p.photo && p.photo.startsWith('data:image')).length;
+      if (comBase64 === 0) {
+        notify('Nenhuma foto antiga para migrar ✓');
+        return;
+      }
+      if (!window.confirm(`Migrar ${comBase64} foto(s) antiga(s) para o Storage?`)) return;
+      notify('Migrando fotos...');
+      const result = await migratePhotosToStorage(products, (done, total) => {
+        if (done === total) notify(`${(result === null || result === void 0 ? void 0 : result.migrated) || done} migrada(s), ${(result === null || result === void 0 ? void 0 : result.failed) || 0} falha(s)`);
+      });
+      if (result.products) persistP(result.products);
+      notify(`✓ ${result.migrated} migrada(s)${result.failed ? ', ' + result.failed + ' falha(s)' : ''}`);
+    }
+  }, "\uD83D\uDD04 Migrar Fotos"), /*#__PURE__*/React.createElement("button", {
     style: {
       ...S.btn("ghost"),
       flexShrink: 0,
