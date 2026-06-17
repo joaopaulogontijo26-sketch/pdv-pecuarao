@@ -28,7 +28,7 @@ window.onerror = function(msg, src, line, col, err) {
 };
 </script>
 <script>
-/* PDV Pro v1.0 - Compilado em 17/06/2026, 02:07:42 */
+/* PDV Pro v1.0 - Compilado em 17/06/2026, 15:02:39 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -7363,35 +7363,37 @@ function BackupList(_ref27) {
     _useState152 = _slicedToArray(_useState151, 2),
     backups = _useState152[0],
     setBackups = _useState152[1];
-  useState(() => {
-    fetch('/api/backups').then(r => r.json()).then(d => setBackups(d)).catch(() => setBackups([]));
-  });
-  const restore = name => {
-    if (!window.confirm('Restaurar "' + name + '"? Estado atual será salvo antes.')) return;
-    fetch('/api/restore/' + encodeURIComponent(name), {
-      method: 'POST'
-    }).then(r => r.json()).then(d => {
-      if (d.ok) {
-        notify('Restaurado! Recarregando...', 'success');
-        setTimeout(() => window.location.reload(), 1500);
-      } else notify('Erro: ' + (d.error || 'falha'), 'error');
-    }).catch(() => notify('Servidor offline', 'error'));
+  useEffect(() => {
+    // Backups agora ficam no Supabase, não em servidor local
+    const key = localStorage.getItem('_sb_key') || "";
+    if (!key) return;
+    fetch(SUPABASE_URL + '/rest/v1/backups?select=id,tag,size_bytes,created_at&order=created_at.desc&limit=30', {
+      headers: {
+        'apikey': key,
+        'Authorization': 'Bearer ' + key
+      }
+    }).then(r => r.ok ? r.json() : []).then(d => setBackups(d || [])).catch(() => setBackups([]));
+  }, []);
+  const restore = id => {
+    notify('Restauração de backup via Supabase ainda não implementada', 'warn');
   };
-  const download = name => window.open('/api/backup?name=' + encodeURIComponent(name), '_blank');
+  const download = id => {
+    notify('Use o SQL Editor do Supabase para exportar backups', 'warn');
+  };
   if (backups.length === 0) return /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: "#3a3d50",
       padding: "8px 0"
     }
-  }, "Nenhum backup encontrado no servidor.");
+  }, "Nenhum backup encontrado no Supabase.");
   return /*#__PURE__*/React.createElement("div", {
     style: {
       maxHeight: 180,
       overflowY: "auto"
     }
   }, backups.map(b => /*#__PURE__*/React.createElement("div", {
-    key: b.name,
+    key: b.id,
     style: {
       display: "flex",
       alignItems: "center",
@@ -7413,13 +7415,13 @@ function BackupList(_ref27) {
       whiteSpace: "nowrap",
       color: "#e8e9f0"
     }
-  }, b.name), /*#__PURE__*/React.createElement("div", {
+  }, b.tag), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       color: "#5A6080"
     }
-  }, new Date(b.date).toLocaleString("pt-BR"), " \xB7 ", Math.round(b.size / 1024), "KB")), /*#__PURE__*/React.createElement("button", {
-    onClick: () => download(b.name),
+  }, new Date(b.created_at).toLocaleString("pt-BR"), " \xB7 ", Math.round((b.size_bytes || 0) / 1024), "KB")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => download(b.id),
     title: "Baixar",
     style: {
       ...S.btn("ghost"),
@@ -7427,7 +7429,7 @@ function BackupList(_ref27) {
       fontSize: 11
     }
   }, "\u2B07\uFE0F"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => restore(b.name),
+    onClick: () => restore(b.id),
     title: "Restaurar",
     style: {
       ...S.btn("ghost"),
@@ -9002,9 +9004,7 @@ function PDVApp() {
       fontFamily: "'Sora',sans-serif"
     }
   }, /*#__PURE__*/React.createElement("img", {
-    src: {
-      LOGO_SRC
-    },
+    src: LOGO_SRC,
     alt: "Pecuar\xE3o Gontijo",
     style: {
       height: 80,
@@ -9075,9 +9075,7 @@ function PDVApp() {
       marginBottom: 10
     }
   }, /*#__PURE__*/React.createElement("img", {
-    src: {
-      LOGO_SRC
-    },
+    src: LOGO_SRC,
     alt: "Pecuar\xE3o",
     style: {
       height: 30,
@@ -9332,11 +9330,30 @@ function PDVApp() {
   }, "\uD83D\uDCBE Backup de Dados"), /*#__PURE__*/React.createElement("button", {
     onClick: async () => {
       try {
-        const r = await fetch('/api/backup', {
-          method: 'POST'
+        const key = localStorage.getItem('_sb_key') || "";
+        if (!key) throw new Error('sem chave');
+        const tag = todayStr() + '_' + Date.now();
+        const data = {
+          products,
+          customers,
+          sales
+        };
+        const sizeBytes = JSON.stringify(data).length;
+        const r = await fetch(SUPABASE_URL + '/rest/v1/backups', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': key,
+            'Authorization': 'Bearer ' + key,
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify([{
+            tag,
+            data,
+            size_bytes: sizeBytes
+          }])
         });
-        const d = await r.json();
-        if (d.ok) notify('Backup criado: ' + d.name + ' ✓');else notify('Erro ao criar backup', 'error');
+        if (r.ok) notify('Backup criado: ' + tag + ' ✓');else throw new Error('falha supabase');
       } catch (e) {
         // offline — exporta localStorage
         const data = {
