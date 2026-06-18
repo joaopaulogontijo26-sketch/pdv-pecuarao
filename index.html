@@ -5344,22 +5344,22 @@ const FASES = [{
   bg: "#94a3b815",
   border: "#94a3b840"
 }, {
-  id: "procurando",
-  label: "Procurando",
-  emoji: "🔍",
-  color: "#f59e0b",
-  bg: "#f59e0b15",
-  border: "#f59e0b50"
-}, {
-  id: "carrinho",
-  label: "No Carrinho",
+  id: "comprado",
+  label: "Comprado",
   emoji: "🛒",
   color: "#3b82f6",
   bg: "#3b82f615",
   border: "#3b82f650"
 }, {
-  id: "comprado",
-  label: "Comprado",
+  id: "receber",
+  label: "Receber",
+  emoji: "📦",
+  color: "#a855f7",
+  bg: "#a855f715",
+  border: "#a855f750"
+}, {
+  id: "recebido",
+  label: "Recebido",
   emoji: "✅",
   color: "#22c55e",
   bg: "#22c55e15",
@@ -5375,7 +5375,9 @@ const FASES = [{
 const FASE_MAP = Object.fromEntries(FASES.map(f => [f.id, f]));
 function ListaComprasPage(_ref20) {
   let S = _ref20.S,
-    notify = _ref20.notify;
+    notify = _ref20.notify,
+    products = _ref20.products,
+    updateProduct = _ref20.updateProduct;
   const _useState113 = useState(() => load("pdv_lista_compras", [])),
     _useState114 = _slicedToArray(_useState113, 2),
     items = _useState114[0],
@@ -5408,6 +5410,36 @@ function ListaComprasPage(_ref20) {
     _useState128 = _slicedToArray(_useState127, 2),
     faseMenu = _useState128[0],
     setFaseMenu = _useState128[1];
+  // Modal comprado
+  const _useStateC1 = useState(null),
+    _useStateC2 = _slicedToArray(_useStateC1, 2),
+    compradoModal = _useStateC2[0],
+    setCompradoModal = _useStateC2[1];
+  const _useStateC3 = useState(""),
+    _useStateC4 = _slicedToArray(_useStateC3, 2),
+    compradoNome = _useStateC4[0],
+    setCompradoNome = _useStateC4[1];
+  const _useStateC5 = useState(""),
+    _useStateC6 = _slicedToArray(_useStateC5, 2),
+    compradoPreco = _useStateC6[0],
+    setCompradoPreco = _useStateC6[1];
+  // Modal receber
+  const _useStateR1 = useState(null),
+    _useStateR2 = _slicedToArray(_useStateR1, 2),
+    receberModal = _useStateR2[0],
+    setReceberModal = _useStateR2[1];
+  const _useStateR3 = useState(false),
+    _useStateR4 = _slicedToArray(_useStateR3, 2),
+    receberScanner = _useStateR4[0],
+    setReceberScanner = _useStateR4[1];
+  const _useStateR5 = useState(""),
+    _useStateR6 = _slicedToArray(_useStateR5, 2),
+    receberBarcode = _useStateR6[0],
+    setReceberBarcode = _useStateR6[1];
+  const _useStateR7 = useState(""),
+    _useStateR8 = _slicedToArray(_useStateR7, 2),
+    receberQty = _useStateR8[0],
+    setReceberQty = _useStateR8[1];
   const inputRef = useRef(null);
   const persist = v => {
     setItems(v);
@@ -5434,25 +5466,154 @@ function ListaComprasPage(_ref20) {
     notify('"' + name + '" adicionado ✓');
   };
   const setFase = (id, fase) => {
-    persist(items.map(i => i.id === id ? {
-      ...i,
-      fase
-    } : i));
+    const item = items.find(i => i.id === id);
+    if (fase === "comprado" && item) {
+      setCompradoModal(item);
+      setCompradoNome(item.name);
+      setCompradoPreco(item.costPrice ? String(item.costPrice) : "");
+      setFaseMenu(null);
+      return;
+    }
+    if (fase === "receber" && item) {
+      setReceberModal(item);
+      setReceberBarcode(item.barcode || "");
+      setReceberQty(item.qty || "1");
+      setFaseMenu(null);
+      return;
+    }
+    persist(items.map(i => i.id === id ? { ...i, fase } : i));
     setFaseMenu(null);
+  };
+  const confirmarComprado = () => {
+    if (!compradoModal) return;
+    const nome = compradoNome.trim();
+    if (!nome) return;
+    persist(items.map(i => i.id === compradoModal.id ? {
+      ...i,
+      name: nome,
+      costPrice: compradoPreco ? +compradoPreco.replace(",", ".") : i.costPrice,
+      fase: "comprado"
+    } : i));
+    setCompradoModal(null);
+    notify('"' + nome + '" marcado como comprado ✓');
+  };
+  const confirmarReceber = () => {
+    if (!receberModal) return;
+    const qtdNum = parseFloat(String(receberQty).replace(",", ".")) || 0;
+    if (qtdNum <= 0) { notify("Informe a quantidade recebida", "error"); return; }
+    // Busca produto pelo barcode ou pelo nome
+    const prod = receberBarcode
+      ? (products || []).find(p => p.barcode === receberBarcode)
+      : null;
+    if (prod && updateProduct) {
+      updateProduct(prod.id, {
+        stock: (prod.stock || 0) + qtdNum,
+        costPrice: receberModal.costPrice || prod.costPrice
+      });
+      notify("Estoque de " + prod.name + " atualizado +" + qtdNum + " ✓");
+    } else if (!prod && receberBarcode) {
+      notify("Produto não encontrado no estoque (cód. " + receberBarcode + ")", "warn");
+    } else {
+      notify("Entrada registrada (produto não vinculado ao estoque)", "warn");
+    }
+    persist(items.map(i => i.id === receberModal.id ? { ...i, fase: "recebido" } : i));
+    setReceberModal(null);
+    setReceberScanner(false);
   };
   const removeItem = id => persist(items.filter(i => i.id !== id));
   const saveEdit = id => {
     if (!editText.trim()) return;
-    persist(items.map(i => i.id === id ? {
-      ...i,
-      name: editText.trim()
-    } : i));
+    persist(items.map(i => i.id === id ? { ...i, name: editText.trim() } : i));
     setEditId(null);
   };
   const filtered = items.filter(i => (filterFase === "todas" || i.fase === filterFase) && i.name.toLowerCase().includes(search.toLowerCase()));
   const counts = Object.fromEntries(FASES.map(f => [f.id, items.filter(i => i.fase === f.id).length]));
-  const totalOk = counts["comprado"] || 0;
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  const totalOk = (counts["recebido"] || 0);
+  return /*#__PURE__*/React.createElement("div", null,
+  // ── Modal Comprado ──────────────────────────────────────────────────────────
+  compradoModal && /*#__PURE__*/React.createElement("div", {
+    style: { position: "fixed", inset: 0, zIndex: 4000, background: "rgba(0,0,0,.75)", display: "flex", alignItems: "flex-end" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { background: "#12142A", borderRadius: "20px 20px 0 0", padding: 24, width: "100%", maxWidth: 480, margin: "0 auto" }
+  }, /*#__PURE__*/React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 18, color: "#3b82f6" } }, "🛒 Confirmar Compra"),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#5A6080", marginBottom: 6 } }, "Nome do produto"),
+  /*#__PURE__*/React.createElement("input", {
+    autoFocus: true,
+    value: compradoNome,
+    onChange: e => setCompradoNome(e.target.value),
+    style: { ...S.input, marginBottom: 14 }
+  }),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#5A6080", marginBottom: 6 } }, "Preço de compra (R$)"),
+  /*#__PURE__*/React.createElement("input", {
+    value: compradoPreco,
+    onChange: e => setCompradoPreco(e.target.value),
+    placeholder: "0,00",
+    inputMode: "decimal",
+    style: { ...S.input, marginBottom: 20 }
+  }),
+  /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } },
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setCompradoModal(null),
+      style: { ...S.btn("ghost"), flex: 1, justifyContent: "center", padding: "13px" }
+    }, "Cancelar"),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: confirmarComprado,
+      style: { ...S.btn("primary"), flex: 1, justifyContent: "center", padding: "13px" }
+    }, "✓ Confirmar")))),
+  // ── Modal Receber ───────────────────────────────────────────────────────────
+  receberModal && !receberScanner && /*#__PURE__*/React.createElement("div", {
+    style: { position: "fixed", inset: 0, zIndex: 4000, background: "rgba(0,0,0,.75)", display: "flex", alignItems: "flex-end" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { background: "#12142A", borderRadius: "20px 20px 0 0", padding: 24, width: "100%", maxWidth: 480, margin: "0 auto" }
+  }, /*#__PURE__*/React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 4, color: "#a855f7" } }, "📦 Receber Mercadoria"),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: "#5A6080", marginBottom: 18 } }, receberModal.name),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#5A6080", marginBottom: 6 } }, "Código de barras"),
+  /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 14 } },
+    /*#__PURE__*/React.createElement("input", {
+      value: receberBarcode,
+      onChange: e => setReceberBarcode(e.target.value),
+      placeholder: "Escanear ou digitar...",
+      style: { ...S.input, flex: 1 }
+    }),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setReceberScanner(true),
+      style: { ...S.btn("primary"), padding: "0 16px", flexShrink: 0 }
+    }, "📷")),
+  receberBarcode && (products || []).find(p => p.barcode === receberBarcode) && /*#__PURE__*/React.createElement("div", {
+    style: { background: "#22c55e15", border: "1px solid #22c55e50", borderRadius: 10, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: "#22c55e" }
+  }, "✓ Produto encontrado: ", (products || []).find(p => p.barcode === receberBarcode).name),
+  receberBarcode && !(products || []).find(p => p.barcode === receberBarcode) && /*#__PURE__*/React.createElement("div", {
+    style: { background: "#f59e0b15", border: "1px solid #f59e0b50", borderRadius: 10, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: "#f59e0b" }
+  }, "⚠ Produto não encontrado no estoque"),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#5A6080", marginBottom: 6 } }, "Quantidade recebida"),
+  /*#__PURE__*/React.createElement("input", {
+    value: receberQty,
+    onChange: e => setReceberQty(e.target.value),
+    placeholder: "1",
+    inputMode: "decimal",
+    style: { ...S.input, marginBottom: 20 }
+  }),
+  /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } },
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => { setReceberModal(null); setReceberScanner(false); },
+      style: { ...S.btn("ghost"), flex: 1, justifyContent: "center", padding: "13px" }
+    }, "Cancelar"),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: confirmarReceber,
+      style: { ...S.btn("primary"), flex: 1, justifyContent: "center", padding: "13px" }
+    }, "📦 Dar Entrada")))),
+  receberScanner && /*#__PURE__*/React.createElement(ScannerBase, {
+    S: S,
+    title: "Escanear Produto",
+    subtitle: "Aponte para o código de barras",
+    onClose: () => setReceberScanner(false),
+    onCode: code => {
+      setReceberBarcode(code);
+      setReceberScanner(false);
+    }
+  }),
+  // ── Conteúdo principal ──────────────────────────────────────────────────────
+  /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 14
     }
@@ -5468,10 +5629,10 @@ function ListaComprasPage(_ref20) {
       fontSize: 13,
       color: "#5A6080"
     }
-  }, totalOk, "/", items.length, " conclu\xEDdos"), totalOk > 0 && /*#__PURE__*/React.createElement("button", {
+  }, totalOk, "/", items.length, " recebidos"), totalOk > 0 && /*#__PURE__*/React.createElement("button", {
     onClick: () => {
-      persist(items.filter(i => i.fase !== "comprado"));
-      notify("Comprados removidos.", "warn");
+      persist(items.filter(i => i.fase !== "recebido"));
+      notify("Recebidos removidos.", "warn");
     },
     style: {
       ...S.btn("danger"),
@@ -8931,7 +9092,7 @@ function PDVApp() {
   const lowStock = products.filter(p => p.stock > 0 && p.stock < (p.minStock || 10));
   const outStock = products.filter(p => p.stock === 0);
   const listaItems = load("pdv_lista_compras", []);
-  const listaPendentes = listaItems.filter(i => i.fase !== "comprado" && i.fase !== "faltou").length;
+  const listaPendentes = listaItems.filter(i => i.fase !== "recebido" && i.fase !== "faltou").length;
   const entregasAtivas = (pedidos || []).filter(e => e.status !== "concluido").length;
   const perm = k => {
     var _currentUser$permissi;
@@ -10185,7 +10346,9 @@ function PDVApp() {
     notify: notify
   }), page === "lista" && /*#__PURE__*/React.createElement(ListaComprasPage, {
     S: S,
-    notify: notify
+    notify: notify,
+    products: products,
+    updateProduct: updateProduct
   }), page === "importar" && /*#__PURE__*/React.createElement(ImportarPage, {
     S: S,
     products: products,
