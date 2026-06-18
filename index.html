@@ -2,8 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0A0C1E">
 <title>PDV — Pecuarão Gontijo</title>
@@ -28,7 +29,7 @@ window.onerror = function(msg, src, line, col, err) {
 };
 </script>
 <script>
-/* PDV Pro v1.0 - Compilado em 17/06/2026, 22:57:05 */
+/* PDV Pro v1.0 - Compilado em 18/06/2026, 10:35:42 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -4392,6 +4393,7 @@ function AtacadoPage(_ref19) {
     persistS = _ref19.persistS,
     persistC = _ref19.persistC,
     persistE = _ref19.persistE,
+    pedidos = _ref19.pedidos,
     sales = _ref19.sales,
     notify = _ref19.notify,
     currentUser = _ref19.currentUser;
@@ -8247,18 +8249,67 @@ function CatSheet(_ref29) {
 }
 
 // ── MAIN APP ────────────────────────────────────────────────────────────────────
+export default
+// Hook para detectar tamanho da tela
+function useScreenSize() {
+  const _useState167 = useState(() => {
+      if (typeof window === 'undefined') return {
+        w: 1200,
+        h: 800,
+        mobile: false,
+        tablet: false,
+        desktop: true
+      };
+      const w = window.innerWidth,
+        h = window.innerHeight;
+      return {
+        w,
+        h,
+        mobile: w < 768,
+        tablet: w >= 768 && w < 1024,
+        desktop: w >= 1024
+      };
+    }),
+    _useState168 = _slicedToArray(_useState167, 2),
+    size = _useState168[0],
+    setSize = _useState168[1];
+  useEffect(() => {
+    let timer;
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const w = window.innerWidth,
+          h = window.innerHeight;
+        setSize({
+          w,
+          h,
+          mobile: w < 768,
+          tablet: w >= 768 && w < 1024,
+          desktop: w >= 1024
+        });
+      }, 100);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      clearTimeout(timer);
+    };
+  }, []);
+  return size;
+}
 function PDVApp() {
   var _NAV$find;
-  const _useState167 = useState(!!localStorage.getItem('_sb_key')),
-    _useState168 = _slicedToArray(_useState167, 2),
-    keyReady = _useState168[0],
-    setKeyReady = _useState168[1];
+  const screen = useScreenSize();
+  const _useState169 = useState(!!localStorage.getItem('_sb_key')),
+    _useState170 = _slicedToArray(_useState169, 2),
+    keyReady = _useState170[0],
+    setKeyReady = _useState170[1];
   // Re-verifica a chave a cada vez que o app carrega
   useEffect(() => {
     const k = localStorage.getItem('_sb_key');
     if (!k) setKeyReady(false);
   }, []);
-  const _useState169 = useState(() => {
+  const _useState171 = useState(() => {
       const u = load("pdv_session", null);
       // Sempre atualiza permissões do admin ao carregar sessão
       if (u && u.role === "admin") return {
@@ -8267,49 +8318,49 @@ function PDVApp() {
       };
       return u;
     }),
-    _useState170 = _slicedToArray(_useState169, 2),
-    currentUser = _useState170[0],
-    setCurrentUser = _useState170[1];
-  const _useState171 = useState("dashboard"),
     _useState172 = _slicedToArray(_useState171, 2),
-    page = _useState172[0],
-    setPage = _useState172[1];
-  const _useState173 = useState(false),
+    currentUser = _useState172[0],
+    setCurrentUser = _useState172[1];
+  const _useState173 = useState("dashboard"),
     _useState174 = _slicedToArray(_useState173, 2),
-    sideOpen = _useState174[0],
-    setSideOpen = _useState174[1];
-  const _useState175 = useState(() => load("pdv_products", [])),
+    page = _useState174[0],
+    setPage = _useState174[1];
+  const _useState175 = useState(false),
     _useState176 = _slicedToArray(_useState175, 2),
-    products = _useState176[0],
-    setProducts = _useState176[1];
-  const _useState177 = useState(() => load("pdv_customers", [])),
+    sideOpen = _useState176[0],
+    setSideOpen = _useState176[1];
+  const _useState177 = useState(() => load("pdv_products", [])),
     _useState178 = _slicedToArray(_useState177, 2),
-    customers = _useState178[0],
-    setCustomers = _useState178[1];
-  const _useState179 = useState(() => load("pdv_sales", [])),
+    products = _useState178[0],
+    setProducts = _useState178[1];
+  const _useState179 = useState(() => load("pdv_customers", [])),
     _useState180 = _slicedToArray(_useState179, 2),
-    sales = _useState180[0],
-    setSales = _useState180[1];
-  const _useState181 = useState(() => load("pdv_entregas", [])),
+    customers = _useState180[0],
+    setCustomers = _useState180[1];
+  const _useState181 = useState(() => load("pdv_sales", [])),
     _useState182 = _slicedToArray(_useState181, 2),
-    pedidos = _useState182[0],
-    setPedidos = _useState182[1];
-  const _useState183 = useState(() => load("pdv_fornecedores", [])),
+    sales = _useState182[0],
+    setSales = _useState182[1];
+  const _useState183 = useState(() => load("pdv_entregas", [])),
     _useState184 = _slicedToArray(_useState183, 2),
-    fornecedores = _useState184[0],
-    setFornecedores = _useState184[1];
-  const _useState185 = useState(false),
+    pedidos = _useState184[0],
+    setPedidos = _useState184[1];
+  const _useState185 = useState(() => load("pdv_fornecedores", [])),
     _useState186 = _slicedToArray(_useState185, 2),
-    appReady = _useState186[0],
-    setAppReady = _useState186[1];
+    fornecedores = _useState186[0],
+    setFornecedores = _useState186[1];
+  const _useState187 = useState(false),
+    _useState188 = _slicedToArray(_useState187, 2),
+    appReady = _useState188[0],
+    setAppReady = _useState188[1];
   // Todos os hooks acima — return condicional só depois
   if (!keyReady) return /*#__PURE__*/React.createElement(KeySetupScreen, {
     onDone: () => setKeyReady(true)
   });
-  const _useState187 = useState(null),
-    _useState188 = _slicedToArray(_useState187, 2),
-    serverOk = _useState188[0],
-    setServerOk = _useState188[1];
+  const _useState189 = useState(null),
+    _useState190 = _slicedToArray(_useState189, 2),
+    serverOk = _useState190[0],
+    setServerOk = _useState190[1];
   const persistP = v => {
     setProducts(v);
     syncSave("products", v);
@@ -8330,111 +8381,111 @@ function PDVApp() {
     setFornecedores(v);
     syncSave("fornecedores", v);
   };
-  const _useState189 = useState([]),
-    _useState190 = _slicedToArray(_useState189, 2),
-    cart = _useState190[0],
-    setCart = _useState190[1];
-  const _useState191 = useState("Avulso"),
+  const _useState191 = useState([]),
     _useState192 = _slicedToArray(_useState191, 2),
-    saleCustomer = _useState192[0],
-    setSaleCustomer = _useState192[1];
-  const _useState193 = useState("Dinheiro"),
+    cart = _useState192[0],
+    setCart = _useState192[1];
+  const _useState193 = useState("Avulso"),
     _useState194 = _slicedToArray(_useState193, 2),
-    salePayment = _useState194[0],
-    setSalePayment = _useState194[1];
-  const _useState195 = useState(false),
+    saleCustomer = _useState194[0],
+    setSaleCustomer = _useState194[1];
+  const _useState195 = useState("Dinheiro"),
     _useState196 = _slicedToArray(_useState195, 2),
-    cartOpen = _useState196[0],
-    setCartOpen = _useState196[1];
-  const _useState197 = useState(null),
+    salePayment = _useState196[0],
+    setSalePayment = _useState196[1];
+  const _useState197 = useState(false),
     _useState198 = _slicedToArray(_useState197, 2),
-    toast = _useState198[0],
-    setToast = _useState198[1];
-  const _useState199 = useState(""),
+    cartOpen = _useState198[0],
+    setCartOpen = _useState198[1];
+  const _useState199 = useState(null),
     _useState200 = _slicedToArray(_useState199, 2),
-    searchProd = _useState200[0],
-    setSearchProd = _useState200[1];
+    toast = _useState200[0],
+    setToast = _useState200[1];
   const _useState201 = useState(""),
     _useState202 = _slicedToArray(_useState201, 2),
-    searchCust = _useState202[0],
-    setSearchCust = _useState202[1];
-  const _useState203 = useState("Todos"),
+    searchProd = _useState202[0],
+    setSearchProd = _useState202[1];
+  const _useState203 = useState(""),
     _useState204 = _slicedToArray(_useState203, 2),
-    filterCat = _useState204[0],
-    setFilterCat = _useState204[1];
-  const _useState205 = useState(false),
+    searchCust = _useState204[0],
+    setSearchCust = _useState204[1];
+  const _useState205 = useState("Todos"),
     _useState206 = _slicedToArray(_useState205, 2),
-    prodSheet = _useState206[0],
-    setProdSheet = _useState206[1];
+    filterCat = _useState206[0],
+    setFilterCat = _useState206[1];
   const _useState207 = useState(false),
     _useState208 = _slicedToArray(_useState207, 2),
-    custSheet = _useState208[0],
-    setCustSheet = _useState208[1];
-  const _useState209 = useState(null),
+    prodSheet = _useState208[0],
+    setProdSheet = _useState208[1];
+  const _useState209 = useState(false),
     _useState210 = _slicedToArray(_useState209, 2),
-    editProd = _useState210[0],
-    setEditProd = _useState210[1];
+    custSheet = _useState210[0],
+    setCustSheet = _useState210[1];
   const _useState211 = useState(null),
     _useState212 = _slicedToArray(_useState211, 2),
-    editCust = _useState212[0],
-    setEditCust = _useState212[1];
+    editProd = _useState212[0],
+    setEditProd = _useState212[1];
   const _useState213 = useState(null),
     _useState214 = _slicedToArray(_useState213, 2),
-    deleteTarget = _useState214[0],
-    setDeleteTarget = _useState214[1];
-  const _useState215 = useState(""),
+    editCust = _useState214[0],
+    setEditCust = _useState214[1];
+  const _useState215 = useState(null),
     _useState216 = _slicedToArray(_useState215, 2),
-    prodSheetPrefill = _useState216[0],
-    setProdSheetPrefill = _useState216[1];
-  const _useState217 = useState(false),
+    deleteTarget = _useState216[0],
+    setDeleteTarget = _useState216[1];
+  const _useState217 = useState(""),
     _useState218 = _slicedToArray(_useState217, 2),
-    showFilters = _useState218[0],
-    setShowFilters = _useState218[1];
-  const _useState219 = useState("name"),
+    prodSheetPrefill = _useState218[0],
+    setProdSheetPrefill = _useState218[1];
+  const _useState219 = useState(false),
     _useState220 = _slicedToArray(_useState219, 2),
-    sortBy = _useState220[0],
-    setSortBy = _useState220[1];
-  const _useState221 = useState("all"),
+    showFilters = _useState220[0],
+    setShowFilters = _useState220[1];
+  const _useState221 = useState("name"),
     _useState222 = _slicedToArray(_useState221, 2),
-    filterAvail = _useState222[0],
-    setFilterAvail = _useState222[1];
-  const _useState223 = useState(""),
+    sortBy = _useState222[0],
+    setSortBy = _useState222[1];
+  const _useState223 = useState("all"),
     _useState224 = _slicedToArray(_useState223, 2),
-    priceMin = _useState224[0],
-    setPriceMin = _useState224[1];
+    filterAvail = _useState224[0],
+    setFilterAvail = _useState224[1];
   const _useState225 = useState(""),
     _useState226 = _slicedToArray(_useState225, 2),
-    priceMax = _useState226[0],
-    setPriceMax = _useState226[1];
-  const _useState227 = useState(false),
+    priceMin = _useState226[0],
+    setPriceMin = _useState226[1];
+  const _useState227 = useState(""),
     _useState228 = _slicedToArray(_useState227, 2),
-    scannerOpen = _useState228[0],
-    setScannerOpen = _useState228[1];
-  const _useState229 = useState(null),
+    priceMax = _useState228[0],
+    setPriceMax = _useState228[1];
+  const _useState229 = useState(false),
     _useState230 = _slicedToArray(_useState229, 2),
-    photoModal = _useState230[0],
-    setPhotoModal = _useState230[1];
+    scannerOpen = _useState230[0],
+    setScannerOpen = _useState230[1];
   const _useState231 = useState(null),
     _useState232 = _slicedToArray(_useState231, 2),
-    editSale = _useState232[0],
-    setEditSale = _useState232[1]; // venda sendo editada no histórico
-  const _useState233 = useState({
+    photoModal = _useState232[0],
+    setPhotoModal = _useState232[1];
+  const _useState233 = useState(null),
+    _useState234 = _slicedToArray(_useState233, 2),
+    editSale = _useState234[0],
+    setEditSale = _useState234[1]; // venda sendo editada no histórico
+  const _useState235 = useState({
       customer: "",
       payment: "",
       date: "",
       items: []
     }),
-    _useState234 = _slicedToArray(_useState233, 2),
-    editSaleForm = _useState234[0],
-    setEditSaleForm = _useState234[1]; // product with photo
-  const _useState235 = useState(() => loadCats()),
     _useState236 = _slicedToArray(_useState235, 2),
-    cats = _useState236[0],
-    setCats = _useState236[1];
-  const _useState237 = useState(false),
+    editSaleForm = _useState236[0],
+    setEditSaleForm = _useState236[1]; // product with photo
+  const _useState237 = useState(() => loadCats()),
     _useState238 = _slicedToArray(_useState237, 2),
-    catSheet = _useState238[0],
-    setCatSheet = _useState238[1];
+    cats = _useState238[0],
+    setCats = _useState238[1];
+  const _useState239 = useState(false),
+    _useState240 = _slicedToArray(_useState239, 2),
+    catSheet = _useState240[0],
+    setCatSheet = _useState240[1];
   const persistCats = v => {
     setCats(v);
     saveCats(v);
@@ -8745,11 +8796,11 @@ function PDVApp() {
   const htmlRecibo = (s, cliente) => {
     const isPrazo = s.payment === "A Prazo";
     const dataStr = s.date || todayStr();
-    const itemRows = s.items.map(i => "<tr><td>" + i.name + "</td><td style='text-align:center'>" + i.qty + "</td><td style='text-align:right;font-weight:600'>" + fmt(i.price * i.qty) + "</td></tr>").join("");
+    const itemRows = s.items.map(i => "<tr><td><div>" + i.name + "</div><div style='font-size:10px;color:#888'>" + i.qty + " x " + fmt(i.price) + "</div></td><td style='text-align:center'>" + i.qty + "</td><td style='text-align:right;font-weight:600'>" + fmt(i.price * i.qty) + "</td></tr>").join("");
     const endCli = cliente ? [cliente.rua && cliente.rua + (cliente.numero ? ", " + cliente.numero : ""), cliente.bairro, cliente.cidade && cliente.cidade + (cliente.uf ? " - " + cliente.uf : "")].filter(Boolean).join(", ") : "";
     const promissoria = isPrazo ? gerarNotaPromissoria((cliente === null || cliente === void 0 ? void 0 : cliente.name) || s.customer, (cliente === null || cliente === void 0 ? void 0 : cliente.cpf) || "", endCli, (cliente === null || cliente === void 0 ? void 0 : cliente.phone) || "", s.total, dataStr, s.id.slice(-6).toUpperCase()) : "";
     const css = "body{font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:20px;color:#111;}table{width:100%;border-collapse:collapse;font-size:13px;}th{background:#f3f4f6;padding:7px 8px;text-align:left;font-size:11px;text-transform:uppercase;}td{padding:7px 8px;border-bottom:1px solid #f3f4f6;}.total{font-size:17px;font-weight:700;text-align:right;margin-top:8px;color:#e74c3c;}@media print{body{max-width:100%;padding:10px}}";
-    return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Recibo</title><style>" + css + "</style></head><body>" + "<div style='background:#2D3A8C;color:#fff;padding:14px;text-align:center;border-radius:8px;margin-bottom:16px'>" + "<img src='" + LOGO_SRC + "' alt='logo' style='height:48px;display:block;margin:0 auto 8px'/>" + "<div style='font-size:16px;font-weight:800;letter-spacing:1px'>RECIBO DE VENDA</div>" + "<div style='font-size:11px;margin-top:4px'>" + s.date + " " + s.time + " · Nº " + s.id.slice(-8).toUpperCase() + "</div></div>" + "<div style='background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:14px'>" + "<div style='font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px'>Cliente</div>" + "<div style='font-weight:700;font-size:14px'>" + ((cliente === null || cliente === void 0 ? void 0 : cliente.name) || s.customer) + "</div>" + (cliente !== null && cliente !== void 0 && cliente.cpf ? "<div style='font-size:12px;color:#666'>CPF/CNPJ: " + cliente.cpf + "</div>" : "") + (cliente !== null && cliente !== void 0 && cliente.phone ? "<div style='font-size:12px;color:#666'>Tel: " + cliente.phone + "</div>" : "") + (endCli ? "<div style='font-size:12px;color:#666'>" + endCli + "</div>" : "") + "</div>" + "<table><thead><tr><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead><tbody>" + itemRows + "</tbody></table>" + "<div class='total'>TOTAL: " + fmt(s.total) + "</div>" + "<div style='display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#666'>" + "<span>Pagamento: <b>" + s.payment + "</b></span>" + (isPrazo ? "<span style='color:#c0392b;font-weight:700'>⚠️ A PRAZO</span>" : "") + "</div>" + "<div style='margin-top:20px;border-top:2px solid #2D3A8C;padding-top:14px;text-align:center'>" + "<div style='font-size:13px;font-weight:700;color:#2D3A8C'>Pecuarão Gontijo</div>" + "<div style='font-size:11px;color:#666'>Rua Guarani, 461 - Jardim Candidés - Divinópolis/MG</div>" + "<div style='font-size:11px;color:#666'>📞 (37) 99922-1020 · CNPJ: 62.321.434/0001-40</div>" + "<div style='font-size:12px;margin-top:8px;color:#E8682A;font-style:italic'>Obrigado pela preferência! 🐾</div>" + "</div>" + promissoria + "</body></html>";
+    return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Recibo</title><style>" + css + "</style></head><body>" + "<div style='background:#2D3A8C;color:#fff;padding:14px;text-align:center;border-radius:8px;margin-bottom:16px'>" + "<div style='font-size:16px;font-weight:800;letter-spacing:1px'>RECIBO DE VENDA</div>" + "<div style='font-size:11px;margin-top:4px'>" + s.date + " " + s.time + " · Nº " + s.id.slice(-8).toUpperCase() + "</div></div>" + "<div style='background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:14px'>" + "<div style='font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px'>Cliente</div>" + "<div style='font-weight:700;font-size:14px'>" + ((cliente === null || cliente === void 0 ? void 0 : cliente.name) || s.customer) + "</div>" + (cliente !== null && cliente !== void 0 && cliente.cpf ? "<div style='font-size:12px;color:#666'>CPF/CNPJ: " + cliente.cpf + "</div>" : "") + (cliente !== null && cliente !== void 0 && cliente.phone ? "<div style='font-size:12px;color:#666'>Tel: " + cliente.phone + "</div>" : "") + (endCli ? "<div style='font-size:12px;color:#666'>" + endCli + "</div>" : "") + "</div>" + "<table><thead><tr><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead><tbody>" + itemRows + "</tbody></table>" + "<div class='total'>TOTAL: " + fmt(s.total) + "</div>" + "<div style='display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#666'>" + "<span>Pagamento: <b>" + s.payment + "</b></span>" + (isPrazo ? "<span style='color:#c0392b;font-weight:700'>⚠️ A PRAZO</span>" : "") + "</div>" + "<div style='margin-top:20px;border-top:2px solid #2D3A8C;padding-top:14px;text-align:center'>" + "<div style='font-size:12px;color:#E8682A;font-style:italic'>Obrigado pela preferência! 🐾</div>" + "</div>" + promissoria + "</body></html>";
   };
   const imprimirRecibo = s => {
     const cliente = customers.find(c => c.name === s.customer);
@@ -8924,7 +8975,7 @@ function PDVApp() {
   }].filter(n => n.perm);
   const goTo = id => {
     setPage(id);
-    setSideOpen(false);
+    if (!screen.desktop) setSideOpen(false);
   };
   const endFmtC = c => {
     const parts = [];
@@ -8954,7 +9005,7 @@ function PDVApp() {
     topbar: {
       background: "#0D1024",
       borderBottom: "1px solid #1a1c2e",
-      padding: "12px 16px",
+      padding: screen.desktop ? "14px 32px" : "12px 16px",
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
@@ -8965,13 +9016,18 @@ function PDVApp() {
       flex: 1,
       overflowY: "auto",
       overflowX: "hidden",
-      padding: "16px 16px 100px"
+      padding: screen.desktop ? "24px 32px 60px" : screen.tablet ? "20px 24px 80px" : "16px 16px 100px"
+    },
+    contentInner: {
+      maxWidth: screen.desktop ? 1400 : "100%",
+      margin: "0 auto",
+      width: "100%"
     },
     card: {
       background: "#0F1220",
       border: "1px solid #1a1c2e",
       borderRadius: 12,
-      padding: 16
+      padding: screen.desktop ? 20 : 16
     },
     statCard: a => ({
       background: "#0F1220",
@@ -9092,14 +9148,23 @@ function PDVApp() {
     rel: "stylesheet"
   }), /*#__PURE__*/React.createElement("div", {
     style: S.app
-  }, sideOpen && /*#__PURE__*/React.createElement("div", {
-    style: {
+  }, (sideOpen || screen.desktop) && /*#__PURE__*/React.createElement("div", {
+    style: screen.desktop ? {
+      position: "relative",
+      width: 240,
+      background: "#0D1024",
+      borderRight: "1px solid #1a1c2e",
+      display: "flex",
+      flexDirection: "column",
+      padding: "24px 0",
+      flexShrink: 0
+    } : {
       position: "fixed",
       inset: 0,
       zIndex: 1000,
       display: "flex"
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, !screen.desktop && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "absolute",
       inset: 0,
@@ -9107,7 +9172,9 @@ function PDVApp() {
     },
     onClick: () => setSideOpen(false)
   }), /*#__PURE__*/React.createElement("div", {
-    style: {
+    style: screen.desktop ? {
+      display: "contents"
+    } : {
       position: "relative",
       width: 255,
       background: "#0D1024",
@@ -9197,7 +9264,7 @@ function PDVApp() {
       alignItems: "center",
       gap: 10
     }
-  }, /*#__PURE__*/React.createElement("button", {
+  }, !screen.desktop && /*#__PURE__*/React.createElement("button", {
     onClick: () => setSideOpen(true),
     style: {
       background: "none",
@@ -9284,6 +9351,8 @@ function PDVApp() {
     size: 14
   })))), /*#__PURE__*/React.createElement("div", {
     style: S.content
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.contentInner
   }, page === "dashboard" && (products.length === 0 && sales.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
     icon: "\uD83C\uDFEA",
     title: "Bem-vindo ao PDV Pro!",
@@ -9314,8 +9383,8 @@ function PDVApp() {
   }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10,
+      gridTemplateColumns: screen.desktop ? "repeat(4,1fr)" : "1fr 1fr",
+      gap: screen.desktop ? 16 : 10,
       marginBottom: 14
     }
   }, [{
@@ -9843,7 +9912,7 @@ function PDVApp() {
   }), " Cadastrar [", searchProd, "]")) : /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "repeat(2,1fr)",
+      gridTemplateColumns: screen.desktop ? "repeat(5,1fr)" : screen.tablet ? "repeat(3,1fr)" : "repeat(2,1fr)",
       gap: 10
     }
   }, filtProdSorted.map(prod => {
@@ -10064,9 +10133,8 @@ function PDVApp() {
     persistP: persistP,
     persistS: persistS,
     persistC: persistC,
-    persistE: v => {
-      syncSave("entregas", v);
-    },
+    persistE: persistE,
+    pedidos: pedidos,
     sales: sales,
     notify: notify,
     currentUser: currentUser
@@ -10648,7 +10716,7 @@ function PDVApp() {
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "trash",
     size: 12
-  }))))))))), editSale && /*#__PURE__*/React.createElement(Sheet, {
+  })))))))))), editSale && /*#__PURE__*/React.createElement(Sheet, {
     onClose: () => setEditSale(null)
   }, /*#__PURE__*/React.createElement("div", {
     style: {
