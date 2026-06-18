@@ -29,7 +29,7 @@ window.onerror = function(msg, src, line, col, err) {
 };
 </script>
 <script>
-/* PDV Pro v1.0 - Compilado em 18/06/2026, 12:44:38 */
+/* PDV Pro v1.0 - Compilado em 18/06/2026, 15:41:44 */
 (function() {
   "use strict";
   var useState  = React.useState;
@@ -350,24 +350,34 @@ const _toRow = {
     created_at: f.createdAt || Date.now()
   })
 };
+
+// Callback global para notificar o status de conexão (definido pelo App)
+let _onSyncStatus = null;
+function setSyncStatusCallback(fn) {
+  _onSyncStatus = fn;
+}
 async function syncSave(col, val) {
   const key = _SB_KEY();
-  if (!key) return;
+  if (!key) return false;
   try {
     if (col === 'categorias') {
       const rows = (Array.isArray(val) ? val : []).map((nome, i) => ({
         nome,
         ordem: i
       }));
-      if (rows.length) await fetch(SUPABASE_URL + '/rest/v1/categorias?on_conflict=nome', {
-        method: 'POST',
-        headers: {
-          ..._SB_H(),
-          Prefer: 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify(rows)
-      });
-      return;
+      if (rows.length) {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/categorias?on_conflict=nome', {
+          method: 'POST',
+          headers: {
+            ..._SB_H(),
+            Prefer: 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify(rows)
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+      }
+      if (_onSyncStatus) _onSyncStatus(true);
+      return true;
     }
     if (col === 'settings') {
       const rows = Object.entries(val || {}).map(_ref => {
@@ -379,23 +389,27 @@ async function syncSave(col, val) {
           value: v
         };
       });
-      if (rows.length) await fetch(SUPABASE_URL + '/rest/v1/settings?on_conflict=key', {
-        method: 'POST',
-        headers: {
-          ..._SB_H(),
-          Prefer: 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify(rows)
-      });
-      return;
+      if (rows.length) {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/settings?on_conflict=key', {
+          method: 'POST',
+          headers: {
+            ..._SB_H(),
+            Prefer: 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify(rows)
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+      }
+      if (_onSyncStatus) _onSyncStatus(true);
+      return true;
     }
     const transform = _toRow[col];
-    if (!transform || !Array.isArray(val)) return;
+    if (!transform || !Array.isArray(val)) return false;
     const rows = val.map(transform);
     if (rows.length > 0) {
       for (let i = 0; i < rows.length; i += 200) {
         const batch = rows.slice(i, i + 200);
-        await fetch(SUPABASE_URL + '/rest/v1/' + col + '?on_conflict=id', {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/' + col + '?on_conflict=id', {
           method: 'POST',
           headers: {
             ..._SB_H(),
@@ -403,6 +417,7 @@ async function syncSave(col, val) {
           },
           body: JSON.stringify(batch)
         });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
       }
       // Deleta do Supabase registros que foram removidos localmente
       const ids = rows.map(r => r.id).filter(Boolean);
@@ -422,8 +437,12 @@ async function syncSave(col, val) {
         headers: _SB_H()
       });
     }
+    if (_onSyncStatus) _onSyncStatus(true);
+    return true;
   } catch (e) {
     console.warn('[PDV] syncSave falhou:', col, e.message);
+    if (_onSyncStatus) _onSyncStatus(false);
+    return false;
   }
 }
 async function syncLoad() {
@@ -6842,7 +6861,7 @@ function EntregasPage(_ref24) {
     const pgStatus = ped.pagamento || "";
     const pgLabel = pgStatus === "pago" ? "✅ PAGO" : pgStatus === "troco" ? "💵 LEVAR TROCO" : pgStatus === "maquina" ? "📲 LEVAR MÁQUINA" : pgStatus === "troco_maquina" ? "💵📲 LEVAR TROCO + MÁQUINA" : "";
     const pgColor = pgStatus === "pago" ? "#27ae60" : "#e74c3c";
-    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>" + ped.numero + "</title><style>" + css + "</style></head><body>" + "<div style='background:#2D3A8C;color:#fff;padding:14px;text-align:center;border-radius:8px;margin-bottom:16px'>" + "<img src='" + LOGO_SRC + "' alt='logo' style='height:44px;display:block;margin:0 auto 6px'/>" + "<div style='font-size:15px;font-weight:800;letter-spacing:1px'>PEDIDO DE ENTREGA</div>" + "<div style='font-size:11px;margin-top:3px;opacity:.85'>" + ped.numero + " · " + ped.criadoData + " " + ped.criadoHora + "</div>" + "</div>" + "<div style='background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px'>" + "<div style='display:flex;justify-content:space-between;margin-bottom:4px'>" + "<span><b>Status:</b> " + st.emoji + " " + st.label + "</span>" + "<span><b>Total:</b> <span style='color:#2D3A8C;font-weight:800'>" + fmt(ped.total) + "</span></span></div>" + "<b>Cliente:</b> " + ped.cliente + (ped.telefone ? " · 📞" + ped.telefone : "") + "<br>" + (ped.endereco ? "<b>Endereço:</b> 📍" + ped.endereco + "<br>" : "") + "</div>" + "<table><thead><tr><th>Produto</th><th style='text-align:center'>Qtd</th><th style='text-align:right'>Valor</th></tr></thead><tbody>" + itemRows + "</tbody></table>" + "<div class='total'>TOTAL: " + fmt(ped.total) + "</div>" + (pgLabel ? "<div style='margin-top:10px;padding:10px;border-radius:6px;border:2px solid " + pgColor + ";font-size:13px;font-weight:800;text-align:center;color:" + pgColor + "'>" + pgLabel + "</div>" : "") + (ped.obs ? "<div style='background:#fffbeb;border:1px solid #fef08a;padding:8px;border-radius:6px;font-size:12px;margin-top:8px'><b>Obs:</b> " + ped.obs + "</div>" : "") + "<div style='border-top:2px solid #2D3A8C;margin-top:20px;padding-top:14px;font-size:11px;color:#888;text-align:center'>" + "Assinatura do recebedor: _______________________________<br><br>Data: _____ / _____ / _______<br><br>" + "<b style='color:#2D3A8C'>Pecuarão Gontijo</b> · Rua Guarani, 461 · (37) 99922-1020" + "</div>" + "</body></html>";
+    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>" + ped.numero + "</title><style>" + css + "</style></head><body>" + "<div style='background:#2D3A8C;color:#fff;padding:14px;text-align:center;border-radius:8px;margin-bottom:16px'>" + "<div style='font-size:15px;font-weight:800;letter-spacing:1px'>PEDIDO DE ENTREGA</div>" + "<div style='font-size:11px;margin-top:3px;opacity:.85'>" + ped.numero + " · " + ped.criadoData + " " + ped.criadoHora + "</div>" + "</div>" + "<div style='background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px'>" + "<div style='display:flex;justify-content:space-between;margin-bottom:4px'>" + "<span><b>Status:</b> " + st.emoji + " " + st.label + "</span>" + "<span><b>Total:</b> <span style='color:#2D3A8C;font-weight:800'>" + fmt(ped.total) + "</span></span></div>" + "<b>Cliente:</b> " + ped.cliente + (ped.telefone ? " · 📞" + ped.telefone : "") + "<br>" + (ped.endereco ? "<b>Endereço:</b> 📍" + ped.endereco + "<br>" : "") + "</div>" + "<table><thead><tr><th>Produto</th><th style='text-align:center'>Qtd</th><th style='text-align:right'>Valor</th></tr></thead><tbody>" + itemRows + "</tbody></table>" + "<div class='total'>TOTAL: " + fmt(ped.total) + "</div>" + (pgLabel ? "<div style='margin-top:10px;padding:10px;border-radius:6px;border:2px solid " + pgColor + ";font-size:13px;font-weight:800;text-align:center;color:" + pgColor + "'>" + pgLabel + "</div>" : "") + (ped.obs ? "<div style='background:#fffbeb;border:1px solid #fef08a;padding:8px;border-radius:6px;font-size:12px;margin-top:8px'><b>Obs:</b> " + ped.obs + "</div>" : "") + "<div style='border-top:2px solid #2D3A8C;margin-top:20px;padding-top:14px;font-size:11px;color:#888;text-align:center'>" + "Assinatura do recebedor: _______________________________<br><br>Data: _____ / _____ / _______" + "</div>" + "</body></html>";
     // Usa iframe para evitar bloqueio de popup
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
@@ -8360,6 +8379,9 @@ function PDVApp() {
     _useState190 = _slicedToArray(_useState189, 2),
     serverOk = _useState190[0],
     setServerOk = _useState190[1];
+  useEffect(() => {
+    setSyncStatusCallback(ok => setServerOk(ok));
+  }, []);
   const persistP = v => {
     setProducts(v);
     syncSave("products", v);
@@ -8910,8 +8932,7 @@ function PDVApp() {
   const outStock = products.filter(p => p.stock === 0);
   const listaItems = load("pdv_lista_compras", []);
   const listaPendentes = listaItems.filter(i => i.fase !== "comprado" && i.fase !== "faltou").length;
-  const entregasData = load("pdv_entregas", []);
-  const entregasAtivas = entregasData.filter(e => e.status !== "concluido").length;
+  const entregasAtivas = (pedidos || []).filter(e => e.status !== "concluido").length;
   const perm = k => {
     var _currentUser$permissi;
     return (currentUser === null || currentUser === void 0 ? void 0 : currentUser.role) === "admin" || (currentUser === null || currentUser === void 0 || (_currentUser$permissi = currentUser.permissions) === null || _currentUser$permissi === void 0 ? void 0 : _currentUser$permissi[k]) === true;
@@ -9316,6 +9337,12 @@ function PDVApp() {
       fontSize: 11
     }
   }, new Date().toLocaleDateString("pt-BR")), /*#__PURE__*/React.createElement("div", {
+    onClick: async () => {
+      if (serverOk === false) {
+        notify("Reconectando...");
+        await reloadFromSupabase(false);
+      }
+    },
     style: {
       display: "flex",
       alignItems: "center",
@@ -9325,8 +9352,10 @@ function PDVApp() {
       borderRadius: 20,
       background: serverOk === true ? "#4ade8018" : serverOk === false ? "#ff3b3b18" : "#f59e0b18",
       border: "1px solid " + (serverOk === true ? "#4ade8040" : serverOk === false ? "#ff3b3b40" : "#f59e0b40"),
-      color: serverOk === true ? "#4ade80" : serverOk === false ? "#ff3b3b" : "#f59e0b"
-    }
+      color: serverOk === true ? "#4ade80" : serverOk === false ? "#ff3b3b" : "#f59e0b",
+      cursor: serverOk === false ? "pointer" : "default"
+    },
+    title: serverOk === false ? "Clique para tentar reconectar" : ""
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       width: 6,
