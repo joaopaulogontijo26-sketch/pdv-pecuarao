@@ -3326,7 +3326,7 @@ function CartDrawer(_ref18) {
     onFinalizeEntrega = _ref18.onFinalizeEntrega,
     onClose = _ref18.onClose,
     onUpdateProduct = _ref18.onUpdateProduct;
-  const _useState43 = useState(false),
+  const _useState43 = useState(true),
     _useState44 = _slicedToArray(_useState43, 2),
     isEntrega = _useState44[0],
     setIsEntrega = _useState44[1];
@@ -4432,6 +4432,14 @@ function AtacadoPage(_ref19) {
     _useState86 = _slicedToArray(_useState85, 2),
     filterCat = _useState86[0],
     setFilterCat = _useState86[1];
+  const _useState85b = useState("name"),
+    _useState86b = _slicedToArray(_useState85b, 2),
+    sortByAtacado = _useState86b[0],
+    setSortByAtacado = _useState86b[1];
+  const _useState85c = useState(false),
+    _useState86c = _slicedToArray(_useState85c, 2),
+    showFiltersAtacado = _useState86c[0],
+    setShowFiltersAtacado = _useState86c[1];
   const _useState87 = useState("grid"),
     _useState88 = _slicedToArray(_useState87, 2),
     step = _useState88[0],
@@ -4493,8 +4501,25 @@ function AtacadoPage(_ref19) {
     return item.precoUnit * (1 - (item.descItem || 0) / 100) * item.qty * rate / 100;
   };
   const cats = ["Todos", ...Array.from(new Set(products.map(p => p.category)))];
-  const filtered = products.filter(p => p.stock > 0 && p.atacadoHabilitado === true // só produtos habilitados para atacado
-  && (filterCat === "Todos" || p.category === filterCat) && p.name.toLowerCase().includes(search.toLowerCase()));
+  const totalAtacadoDisponivel = products.filter(p => p.stock > 0 && p.atacadoHabilitado === true).length;
+  const vendidoPorNomeAtacado = useMemo(() => {
+    const map = {};
+    (sales || []).forEach(s => (s.items || []).forEach(i => {
+      map[i.name] = (map[i.name] || 0) + (i.qty || 0);
+    }));
+    return map;
+  }, [sales]);
+  const filtered = [...products.filter(p => p.stock > 0 && p.atacadoHabilitado === true // só produtos habilitados para atacado
+  && (filterCat === "Todos" || p.category === filterCat) && p.name.toLowerCase().includes(search.toLowerCase()))].sort((a, b) => {
+    if (sortByAtacado === "name") return a.name.localeCompare(b.name);
+    if (sortByAtacado === "nameZ") return b.name.localeCompare(a.name);
+    if (sortByAtacado === "priceAsc") return (a.priceAtacado || a.price) - (b.priceAtacado || b.price);
+    if (sortByAtacado === "priceDesc") return (b.priceAtacado || b.price) - (a.priceAtacado || a.price);
+    if (sortByAtacado === "stock") return b.stock - a.stock;
+    if (sortByAtacado === "stockAsc") return a.stock - b.stock;
+    if (sortByAtacado === "maisVendidos") return (vendidoPorNomeAtacado[b.name] || 0) - (vendidoPorNomeAtacado[a.name] || 0);
+    return 0;
+  });
   const addItem = p => {
     setItems(prev => {
       const ex = prev.find(i => i.id === p.id);
@@ -4635,7 +4660,11 @@ function AtacadoPage(_ref19) {
     style: {
       color: "#4ade80"
     }
-  }, comissao, "%"))), items.length > 0 && /*#__PURE__*/React.createElement("button", {
+  }, comissao, "%"), " \xB7 ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: "#f59e0b"
+    }
+  }, totalAtacadoDisponivel), " dispon\xEDveis")), items.length > 0 && /*#__PURE__*/React.createElement("button", {
     onClick: () => setStep("edit"),
     style: {
       ...S.btn("primary"),
@@ -4689,7 +4718,31 @@ function AtacadoPage(_ref19) {
       cursor: "pointer",
       fontSize: 18
     }
-  }, "\xD7"))), /*#__PURE__*/React.createElement("div", {
+  }, "\xD7")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowFiltersAtacado(f => !f),
+    style: {
+      ...S.btn(showFiltersAtacado ? "primary" : "ghost"),
+      padding: "10px 12px",
+      flexShrink: 0,
+      borderRadius: 10
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "sliders",
+    size: 17
+  }))), showFiltersAtacado && /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.card,
+      marginBottom: 10,
+      padding: 14,
+      border: "1px solid #f59e0b30"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12, fontWeight: 700, color: "#f59e0b", marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }
+  }, "\uD83D\uDD0D Ordenar"), /*#__PURE__*/React.createElement("select", {
+    style: { ...S.input, fontSize: 12, padding: "8px 10px" },
+    value: sortByAtacado,
+    onChange: e => setSortByAtacado(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", { value: "name" }, "Nome A-Z"), /*#__PURE__*/React.createElement("option", { value: "nameZ" }, "Nome Z-A"), /*#__PURE__*/React.createElement("option", { value: "priceAsc" }, "Menor pre\xE7o"), /*#__PURE__*/React.createElement("option", { value: "priceDesc" }, "Maior pre\xE7o"), /*#__PURE__*/React.createElement("option", { value: "stock" }, "Mais estoque"), /*#__PURE__*/React.createElement("option", { value: "stockAsc" }, "Menos estoque"), /*#__PURE__*/React.createElement("option", { value: "maisVendidos" }, "Mais vendidos"))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -4709,6 +4762,12 @@ function AtacadoPage(_ref19) {
       flexShrink: 0
     }
   }, cat))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#5A6080",
+      marginBottom: 8
+    }
+  }, filtered.length, " produto(s) dispon\xEDvel(is)"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(2,1fr)",
@@ -5377,7 +5436,8 @@ function ListaComprasPage(_ref20) {
   let S = _ref20.S,
     notify = _ref20.notify,
     products = _ref20.products,
-    updateProduct = _ref20.updateProduct;
+    updateProduct = _ref20.updateProduct,
+    persistP = _ref20.persistP;
   const _useState113 = useState(() => load("pdv_lista_compras", [])),
     _useState114 = _slicedToArray(_useState113, 2),
     items = _useState114[0],
@@ -5423,6 +5483,10 @@ function ListaComprasPage(_ref20) {
     _useStateC6 = _slicedToArray(_useStateC5, 2),
     compradoPreco = _useStateC6[0],
     setCompradoPreco = _useStateC6[1];
+  const _useStateC7 = useState(""),
+    _useStateC8 = _slicedToArray(_useStateC7, 2),
+    compradoPrecoVenda = _useStateC8[0],
+    setCompradoPrecoVenda = _useStateC8[1];
   // Modal receber
   const _useStateR1 = useState(null),
     _useStateR2 = _slicedToArray(_useStateR1, 2),
@@ -5440,6 +5504,19 @@ function ListaComprasPage(_ref20) {
     _useStateR8 = _slicedToArray(_useStateR7, 2),
     receberQty = _useStateR8[0],
     setReceberQty = _useStateR8[1];
+  // Etiquetas
+  const _useStateE1 = useState([]),
+    _useStateE2 = _slicedToArray(_useStateE1, 2),
+    selecionadas = _useStateE2[0],
+    setSelecionadas = _useStateE2[1];
+  const _useStateE3 = useState(null),
+    _useStateE4 = _slicedToArray(_useStateE3, 2),
+    etiquetaModal = _useStateE4[0],
+    setEtiquetaModal = _useStateE4[1]; // array de items ou null
+  const _useStateE5 = useState("3col"),
+    _useStateE6 = _slicedToArray(_useStateE5, 2),
+    etiquetaLayout = _useStateE6[0],
+    setEtiquetaLayout = _useStateE6[1];
   const inputRef = useRef(null);
   const persist = v => {
     setItems(v);
@@ -5471,6 +5548,7 @@ function ListaComprasPage(_ref20) {
       setCompradoModal(item);
       setCompradoNome(item.name);
       setCompradoPreco(item.costPrice ? String(item.costPrice) : "");
+      setCompradoPrecoVenda(item.price ? String(item.price) : "");
       setFaseMenu(null);
       return;
     }
@@ -5492,6 +5570,7 @@ function ListaComprasPage(_ref20) {
       ...i,
       name: nome,
       costPrice: compradoPreco ? +compradoPreco.replace(",", ".") : i.costPrice,
+      price: compradoPrecoVenda ? +compradoPrecoVenda.replace(",", ".") : i.price,
       fase: "comprado"
     } : i));
     setCompradoModal(null);
@@ -5501,24 +5580,97 @@ function ListaComprasPage(_ref20) {
     if (!receberModal) return;
     const qtdNum = parseFloat(String(receberQty).replace(",", ".")) || 0;
     if (qtdNum <= 0) { notify("Informe a quantidade recebida", "error"); return; }
-    // Busca produto pelo barcode ou pelo nome
+    // Busca produto pelo barcode
     const prod = receberBarcode
       ? (products || []).find(p => p.barcode === receberBarcode)
       : null;
     if (prod && updateProduct) {
+      // Produto já cadastrado — só atualiza estoque (e custo/venda se vieram do item)
       updateProduct(prod.id, {
         stock: (prod.stock || 0) + qtdNum,
-        costPrice: receberModal.costPrice || prod.costPrice
+        costPrice: receberModal.costPrice || prod.costPrice,
+        price: receberModal.price || prod.price
       });
       notify("Estoque de " + prod.name + " atualizado +" + qtdNum + " ✓");
-    } else if (!prod && receberBarcode) {
-      notify("Produto não encontrado no estoque (cód. " + receberBarcode + ")", "warn");
+    } else if (!prod && persistP) {
+      // Produto novo — cadastra automaticamente
+      const novo = {
+        id: uid(),
+        name: receberModal.name,
+        category: "Outros",
+        price: +(receberModal.price || 0),
+        priceAtacado: 0,
+        costPrice: +(receberModal.costPrice || 0),
+        comissaoProd: 0,
+        atacadoHabilitado: false,
+        stock: qtdNum,
+        minStock: 5,
+        unit: "unid",
+        barcode: receberBarcode || "",
+        photo: "",
+        description: "",
+        createdAt: Date.now()
+      };
+      persistP([novo, ...(products || [])]);
+      notify("Produto \"" + novo.name + "\" cadastrado e estoque iniciado ✓");
     } else {
       notify("Entrada registrada (produto não vinculado ao estoque)", "warn");
     }
     persist(items.map(i => i.id === receberModal.id ? { ...i, fase: "recebido" } : i));
     setReceberModal(null);
     setReceberScanner(false);
+  };
+  const toggleSelecionada = id => setSelecionadas(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  const abrirImpressao = (lista) => {
+    if (!lista || lista.length === 0) return;
+    setEtiquetaModal(lista);
+  };
+  const confirmarImpressao = () => {
+    const lista = etiquetaModal;
+    if (!lista || lista.length === 0) return;
+    const layout = etiquetaLayout; // "1col" = 30x60mm | "3col" = 20x30mm
+    const w = window.open("", "_blank");
+    const pageCss = layout === "1col"
+      ? "@page{size:30mm 60mm;margin:0}body{margin:0}"
+      : "@page{size:20mm 30mm;margin:0}body{margin:0}";
+    const labelCss = layout === "1col"
+      ? "width:30mm;height:60mm;padding:2mm 1.5mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:center;page-break-after:always;text-align:center;"
+      : "width:20mm;height:30mm;padding:1mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:center;page-break-after:always;text-align:center;";
+    const nomeSize = layout === "1col" ? "11px" : "7px";
+    const precoSize = layout === "1col" ? "18px" : "11px";
+    const labelsHtml = lista.map(item => {
+      const nome = (item.name || "").toUpperCase();
+      const preco = item.price ? fmt(item.price) : "—";
+      const code = item.barcode || "";
+      return "<div class='label'>" +
+        "<div style='font-size:" + nomeSize + ";font-weight:700;line-height:1.15;max-height:2.4em;overflow:hidden'>" + nome + "</div>" +
+        "<div style='font-size:" + precoSize + ";font-weight:900;color:#000;margin:1mm 0'>" + preco + "</div>" +
+        (code ? "<svg class='bc' data-code='" + code + "'></svg><div style='font-size:6px;letter-spacing:1px'>" + code + "</div>" : "") +
+        "</div>";
+    }).join("");
+    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Etiquetas</title>" +
+      "<style>" + pageCss + "*{font-family:Arial,sans-serif}.label{" + labelCss + "border:0}" +
+      (layout === "3col" ? ".wrap{display:flex;flex-wrap:wrap}" : "") +
+      "</style></head><body>" +
+      "<div class='wrap'>" + labelsHtml + "</div>" +
+      "<script src='https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js'><" + "/script>" +
+      "<script>" +
+      "window.onload=function(){" +
+      "document.querySelectorAll('.bc').forEach(function(el){" +
+      "try{JsBarcode(el, el.getAttribute('data-code'), {format:'CODE128',width:1.3,height:28,displayValue:false,margin:0});}catch(e){}" +
+      "});" +
+      "setTimeout(function(){window.print();},350);" +
+      "};" +
+      "<" + "/script>" +
+      "</body></html>";
+    w.document.write(html);
+    w.document.close();
+    // Remove os itens impressos da lista de compras
+    const idsImpressos = lista.map(i => i.id);
+    persist(items.filter(i => !idsImpressos.includes(i.id)));
+    setSelecionadas(s => s.filter(id => !idsImpressos.includes(id)));
+    setEtiquetaModal(null);
+    notify(lista.length + " etiqueta(s) enviada(s) para impressão ✓");
   };
   const removeItem = id => persist(items.filter(i => i.id !== id));
   const saveEdit = id => {
@@ -5547,6 +5699,14 @@ function ListaComprasPage(_ref20) {
   /*#__PURE__*/React.createElement("input", {
     value: compradoPreco,
     onChange: e => setCompradoPreco(e.target.value),
+    placeholder: "0,00",
+    inputMode: "decimal",
+    style: { ...S.input, marginBottom: 14 }
+  }),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#5A6080", marginBottom: 6 } }, "Preço de venda (R$)"),
+  /*#__PURE__*/React.createElement("input", {
+    value: compradoPrecoVenda,
+    onChange: e => setCompradoPrecoVenda(e.target.value),
     placeholder: "0,00",
     inputMode: "decimal",
     style: { ...S.input, marginBottom: 20 }
@@ -5584,7 +5744,7 @@ function ListaComprasPage(_ref20) {
   }, "✓ Produto encontrado: ", (products || []).find(p => p.barcode === receberBarcode).name),
   receberBarcode && !(products || []).find(p => p.barcode === receberBarcode) && /*#__PURE__*/React.createElement("div", {
     style: { background: "#f59e0b15", border: "1px solid #f59e0b50", borderRadius: 10, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: "#f59e0b" }
-  }, "⚠ Produto não encontrado no estoque"),
+  }, "⚠ Produto novo — será cadastrado automaticamente no estoque"),
   /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#5A6080", marginBottom: 6 } }, "Quantidade recebida"),
   /*#__PURE__*/React.createElement("input", {
     value: receberQty,
@@ -5612,6 +5772,42 @@ function ListaComprasPage(_ref20) {
       setReceberScanner(false);
     }
   }),
+  // ── Modal Etiquetas ─────────────────────────────────────────────────────────
+  etiquetaModal && /*#__PURE__*/React.createElement("div", {
+    style: { position: "fixed", inset: 0, zIndex: 4000, background: "rgba(0,0,0,.75)", display: "flex", alignItems: "flex-end" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { background: "#12142A", borderRadius: "20px 20px 0 0", padding: 24, width: "100%", maxWidth: 480, margin: "0 auto" }
+  }, /*#__PURE__*/React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 4, color: "#E8682A" } }, "🏷️ Imprimir Etiqueta"),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: "#5A6080", marginBottom: 18 } }, etiquetaModal.length, " produto(s) selecionado(s)"),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "#5A6080", marginBottom: 8 } }, "Layout (Elgin L42 Pro Full)"),
+  /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, marginBottom: 20 } },
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEtiquetaLayout("1col"),
+      style: {
+        flex: 1, padding: "14px 8px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
+        border: "2px solid " + (etiquetaLayout === "1col" ? "#E8682A" : "#1E2245"),
+        background: etiquetaLayout === "1col" ? "#E8682A15" : "#1E2245",
+        color: etiquetaLayout === "1col" ? "#E8682A" : "#8a8da0"
+      }
+    }, /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, "1 Coluna"), /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, marginTop: 2 } }, "30 x 60 mm")),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEtiquetaLayout("3col"),
+      style: {
+        flex: 1, padding: "14px 8px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
+        border: "2px solid " + (etiquetaLayout === "3col" ? "#E8682A" : "#1E2245"),
+        background: etiquetaLayout === "3col" ? "#E8682A15" : "#1E2245",
+        color: etiquetaLayout === "3col" ? "#E8682A" : "#8a8da0"
+      }
+    }, /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, "3 Colunas"), /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, marginTop: 2 } }, "20 x 30 mm"))),
+  /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } },
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEtiquetaModal(null),
+      style: { ...S.btn("ghost"), flex: 1, justifyContent: "center", padding: "13px" }
+    }, "Cancelar"),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: confirmarImpressao,
+      style: { ...S.btn("primary"), flex: 1, justifyContent: "center", padding: "13px" }
+    }, "🖨️ Imprimir")))),
   // ── Conteúdo principal ──────────────────────────────────────────────────────
   /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5654,7 +5850,23 @@ function ListaComprasPage(_ref20) {
       borderRadius: 10,
       transition: "width .4s"
     }
-  }))), /*#__PURE__*/React.createElement("div", {
+  }))), selecionadas.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      background: "#E8682A15",
+      border: "1px solid #E8682A50",
+      borderRadius: 12,
+      padding: "8px 12px",
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: { fontSize: 12, color: "#E8682A", fontWeight: 700 }
+  }, selecionadas.length, " selecionada(s)"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => abrirImpressao(items.filter(i => selecionadas.includes(i.id))),
+    style: { ...S.btn("primary"), padding: "6px 14px", fontSize: 12 }
+  }, "🏷️ Imprimir selecionadas")), /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.card,
       marginBottom: 12,
@@ -5800,7 +6012,12 @@ function ListaComprasPage(_ref20) {
         alignItems: "center",
         gap: 8
       }
-    }, /*#__PURE__*/React.createElement("button", {
+    }, item.fase === "recebido" && /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: selecionadas.includes(item.id),
+      onChange: () => toggleSelecionada(item.id),
+      style: { width: 18, height: 18, flexShrink: 0, accentColor: "#E8682A", cursor: "pointer" }
+    }), /*#__PURE__*/React.createElement("button", {
       onClick: () => setFaseMenu(faseMenu === item.id ? null : item.id),
       style: {
         flexShrink: 0,
@@ -5862,7 +6079,20 @@ function ListaComprasPage(_ref20) {
         fontSize: 11,
         flexShrink: 0
       }
-    }, item.qty))), /*#__PURE__*/React.createElement("button", {
+    }, item.qty))), item.fase === "recebido" && /*#__PURE__*/React.createElement("button", {
+      onClick: () => abrirImpressao([item]),
+      title: "Imprimir etiqueta",
+      style: {
+        background: "none",
+        border: "none",
+        color: "#E8682A",
+        cursor: "pointer",
+        padding: "4px 6px",
+        fontSize: 16,
+        lineHeight: 1,
+        flexShrink: 0
+      }
+    }, "\uD83C\uDFF7\uFE0F"), /*#__PURE__*/React.createElement("button", {
       onClick: () => removeItem(item.id),
       style: {
         background: "none",
@@ -8639,6 +8869,10 @@ function PDVApp() {
     _useState228 = _slicedToArray(_useState227, 2),
     priceMax = _useState228[0],
     setPriceMax = _useState228[1];
+  const _useState227b = useState("all"),
+    _useState228b = _slicedToArray(_useState227b, 2),
+    filterTipoVenda = _useState228b[0],
+    setFilterTipoVenda = _useState228b[1];
   const _useState229 = useState(false),
     _useState230 = _slicedToArray(_useState229, 2),
     scannerOpen = _useState230[0],
@@ -8969,7 +9203,7 @@ function PDVApp() {
     // Valor e vencimento
     "<div style='display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #ddd'>", "  <div style='padding:14px 20px;border-right:1px solid #ddd'>", "    <div style='font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px'>Valor</div>", "    <div style='font-size:22px;font-weight:900;color:#c0392b'>" + fmt(total) + "</div>", "  </div>", "  <div style='padding:14px 20px'>", "    <div style='font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px'>Vencimento</div>", "    <div style='font-size:16px;font-weight:700'>_____ / _____ / __________</div>", "  </div>", "</div>",
     // Texto legal
-    "<div style='padding:18px 20px;font-size:13px;line-height:2;border-bottom:1px solid #ddd'>", "  Aos <u>&nbsp;&nbsp;<b>" + dia + "</b>&nbsp;&nbsp;</u> dias do mês de <u>&nbsp;&nbsp;<b>" + mes + "</b>&nbsp;&nbsp;</u> de <u>&nbsp;&nbsp;<b>" + ano + "</b>&nbsp;&nbsp;</u>,", "  pagarei por esta única via de <strong>NOTA PROMISSÓRIA</strong> a", "  <u><b> PECUARÃO GONTIJO - DEPÓSITO & AGROPECUÁRIA </b></u>, ou à sua ordem,", "  a quantia de:<br>", "  <div style='border:1px dashed #999;border-radius:4px;padding:8px 12px;margin:8px 0;font-style:italic;color:#333;background:#fafafa'><b>" + ext.charAt(0).toUpperCase() + ext.slice(1) + "</b></div>", "  em moeda corrente nacional, com vencimento em _____ / _____ / __________, no endereço:<br>", "  <b>Rua Guarani, 461 - Jardim Candidés - Divinópolis/MG | Tel: (37) 99922-1020</b>", "</div>",
+    "<div style='padding:18px 20px;font-size:13px;line-height:2;border-bottom:1px solid #ddd'>", "  Aos <u>&nbsp;&nbsp;<b>" + dia + "</b>&nbsp;&nbsp;</u> dias do mês de <u>&nbsp;&nbsp;<b>" + mes + "</b>&nbsp;&nbsp;</u> de <u>&nbsp;&nbsp;<b>" + ano + "</b>&nbsp;&nbsp;</u>,", "  pagarei por esta única via de <strong>NOTA PROMISSÓRIA</strong> a", "  <u><b> PECUARÃO GONTIJO - DEPÓSITO & AGROPECUÁRIA </b></u>, inscrito sob CNPJ <b>41.192.464/0001-81</b>, ou à sua ordem,", "  a quantia de:<br>", "  <div style='border:1px dashed #999;border-radius:4px;padding:8px 12px;margin:8px 0;font-style:italic;color:#333;background:#fafafa'><b>" + ext.charAt(0).toUpperCase() + ext.slice(1) + "</b></div>", "  em moeda corrente nacional, com vencimento em _____ / _____ / __________, no endereço:<br>", "  <b>Rua Guarani, 461 - Jardim Candidés - Divinópolis/MG | Tel: (37) 99922-1020</b>", "</div>",
     // Devedor
     "<div style='padding:14px 20px;border-bottom:1px solid #ddd;font-size:12px'>", "  <b>Devedor:</b> " + (nome || "_".repeat(40)) + (cpf ? " &nbsp;|&nbsp; <b>CPF/CNPJ:</b> " + cpf : "") + (telefone ? " &nbsp;|&nbsp; <b>Tel:</b> " + telefone : "") + "<br>", "  <b>Endereço:</b> " + (endereco || "_".repeat(60)), "</div>",
     // Assinaturas
@@ -9062,6 +9296,13 @@ function PDVApp() {
     }
   };
   const categories = useMemo(() => ["Todos", ...Array.from(new Set(products.map(p => p.category)))], products);
+  const vendidoPorNome = useMemo(() => {
+    const map = {};
+    (sales || []).forEach(s => (s.items || []).forEach(i => {
+      map[i.name] = (map[i.name] || 0) + (i.qty || 0);
+    }));
+    return map;
+  }, [sales]);
   const filtProd = useMemo(() => products.filter(p => (filterCat === "Todos" || p.category === filterCat) && p.name.toLowerCase().includes(searchProd.toLowerCase())), [products, filterCat, searchProd]);
   const filtProdSorted = useMemo(() => {
     let list = filtProd.filter(p => {
@@ -9070,6 +9311,8 @@ function PDVApp() {
       if (filterAvail === "out") return p.stock === 0;
       return true;
     });
+    if (filterTipoVenda === "atacado") list = list.filter(p => p.atacadoHabilitado);
+    if (filterTipoVenda === "varejo") list = list.filter(p => !p.atacadoHabilitado);
     if (priceMin !== "") list = list.filter(p => p.price >= +priceMin);
     if (priceMax !== "") list = list.filter(p => p.price <= +priceMax);
     if (searchProd && searchProd.match(/^[0-9]{6,}/)) {
@@ -9083,9 +9326,30 @@ function PDVApp() {
       if (sortBy === "priceDesc") return b.price - a.price;
       if (sortBy === "stock") return b.stock - a.stock;
       if (sortBy === "stockAsc") return a.stock - b.stock;
+      if (sortBy === "maisVendidos") return (vendidoPorNome[b.name] || 0) - (vendidoPorNome[a.name] || 0);
       return 0;
     });
-  }, [filtProd, filterAvail, priceMin, priceMax, sortBy, searchProd, products]);
+  }, [filtProd, filterAvail, filterTipoVenda, priceMin, priceMax, sortBy, searchProd, products, vendidoPorNome]);
+  const estoquePageList = useMemo(() => {
+    let list = products.filter(p => p.name.toLowerCase().includes(searchProd.toLowerCase()));
+    if (filterAvail === "instock") list = list.filter(p => p.stock > 0);
+    if (filterAvail === "low") list = list.filter(p => p.stock > 0 && p.stock < 10);
+    if (filterAvail === "out") list = list.filter(p => p.stock === 0);
+    if (filterTipoVenda === "atacado") list = list.filter(p => p.atacadoHabilitado);
+    if (filterTipoVenda === "varejo") list = list.filter(p => !p.atacadoHabilitado);
+    if (priceMin !== "") list = list.filter(p => p.price >= +priceMin);
+    if (priceMax !== "") list = list.filter(p => p.price <= +priceMax);
+    return [...list].sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      if (sortBy === "nameZ") return b.name.localeCompare(a.name);
+      if (sortBy === "priceAsc") return a.price - b.price;
+      if (sortBy === "priceDesc") return b.price - a.price;
+      if (sortBy === "stock") return b.stock - a.stock;
+      if (sortBy === "stockAsc") return a.stock - b.stock;
+      if (sortBy === "maisVendidos") return (vendidoPorNome[b.name] || 0) - (vendidoPorNome[a.name] || 0);
+      return 0;
+    });
+  }, [products, searchProd, filterAvail, filterTipoVenda, priceMin, priceMax, sortBy, vendidoPorNome]);
   const todaySales = sales.filter(s => s.date === todayStr());
   const todayRev = todaySales.reduce((s, v) => s + v.total, 0);
   const totalRev = sales.reduce((s, v) => s + v.total, 0);
@@ -9976,7 +10240,9 @@ function PDVApp() {
     value: "stock"
   }, "Mais estoque"), /*#__PURE__*/React.createElement("option", {
     value: "stockAsc"
-  }, "Menos estoque"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "Menos estoque"), /*#__PURE__*/React.createElement("option", {
+    value: "maisVendidos"
+  }, "Mais vendidos"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.lbl,
       marginBottom: 4
@@ -9998,6 +10264,29 @@ function PDVApp() {
   }, "Estoque baixo"), /*#__PURE__*/React.createElement("option", {
     value: "out"
   }, "Esgotados")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 4
+    }
+  }, "Tipo de Venda"), /*#__PURE__*/React.createElement("select", {
+    style: {
+      ...S.input,
+      fontSize: 12,
+      padding: "8px 10px"
+    },
+    value: filterTipoVenda,
+    onChange: e => setFilterTipoVenda(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Atacado + Varejo"), /*#__PURE__*/React.createElement("option", {
+    value: "atacado"
+  }, "Habilitado p/ Atacado"), /*#__PURE__*/React.createElement("option", {
+    value: "varejo"
+  }, "Só Varejo"))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 8
     }
@@ -10036,6 +10325,7 @@ function PDVApp() {
     onClick: () => {
       setSortBy("name");
       setFilterAvail("all");
+      setFilterTipoVenda("all");
       setPriceMin("");
       setPriceMax("");
     },
@@ -10348,7 +10638,8 @@ function PDVApp() {
     S: S,
     notify: notify,
     products: products,
-    updateProduct: updateProduct
+    updateProduct: updateProduct,
+    persistP: persistP
   }), page === "importar" && /*#__PURE__*/React.createElement(ImportarPage, {
     S: S,
     products: products,
@@ -10385,6 +10676,17 @@ function PDVApp() {
     placeholder: "Buscar...",
     value: searchProd,
     onChange: e => setSearchProd(e.target.value)
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowFilters(f => !f),
+    style: {
+      ...S.btn(showFilters ? "primary" : "ghost"),
+      padding: "10px 12px",
+      flexShrink: 0,
+      borderRadius: 10
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "sliders",
+    size: 17
   })), /*#__PURE__*/React.createElement("button", {
     style: {
       ...S.btn("ghost"),
@@ -10454,7 +10756,77 @@ function PDVApp() {
     },
     title: "Gerenciar Categorias",
     onClick: () => setCatSheet(true)
-  }, "\uD83C\uDFF7\uFE0F")), products.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+  }, "\uD83C\uDFF7\uFE0F")), showFilters && /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.card,
+      marginBottom: 10,
+      padding: 14,
+      border: "1px solid #E8682A30"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#E8682A",
+      marginBottom: 10,
+      textTransform: "uppercase",
+      letterSpacing: 1
+    }
+  }, "\uD83D\uDD0D Filtros"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 8,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: { ...S.lbl, marginBottom: 4 }
+  }, "Ordenar por"), /*#__PURE__*/React.createElement("select", {
+    style: { ...S.input, fontSize: 12, padding: "8px 10px" },
+    value: sortBy,
+    onChange: e => setSortBy(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", { value: "name" }, "Nome A-Z"), /*#__PURE__*/React.createElement("option", { value: "nameZ" }, "Nome Z-A"), /*#__PURE__*/React.createElement("option", { value: "priceAsc" }, "Menor pre\xE7o"), /*#__PURE__*/React.createElement("option", { value: "priceDesc" }, "Maior pre\xE7o"), /*#__PURE__*/React.createElement("option", { value: "stock" }, "Mais estoque"), /*#__PURE__*/React.createElement("option", { value: "stockAsc" }, "Menos estoque"), /*#__PURE__*/React.createElement("option", { value: "maisVendidos" }, "Mais vendidos"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: { ...S.lbl, marginBottom: 4 }
+  }, "Disponibilidade"), /*#__PURE__*/React.createElement("select", {
+    style: { ...S.input, fontSize: 12, padding: "8px 10px" },
+    value: filterAvail,
+    onChange: e => setFilterAvail(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", { value: "all" }, "Todos"), /*#__PURE__*/React.createElement("option", { value: "instock" }, "Com estoque"), /*#__PURE__*/React.createElement("option", { value: "low" }, "Estoque baixo"), /*#__PURE__*/React.createElement("option", { value: "out" }, "Esgotados")))), /*#__PURE__*/React.createElement("div", {
+    style: { marginBottom: 8 }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { ...S.lbl, marginBottom: 4 }
+  }, "Tipo de Venda"), /*#__PURE__*/React.createElement("select", {
+    style: { ...S.input, fontSize: 12, padding: "8px 10px" },
+    value: filterTipoVenda,
+    onChange: e => setFilterTipoVenda(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", { value: "all" }, "Atacado + Varejo"), /*#__PURE__*/React.createElement("option", { value: "atacado" }, "Habilitado p/ Atacado"), /*#__PURE__*/React.createElement("option", { value: "varejo" }, "Só Varejo"))), /*#__PURE__*/React.createElement("div", {
+    style: { marginBottom: 8 }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { ...S.lbl, marginBottom: 4 }
+  }, "Faixa de Pre\xE7o"), /*#__PURE__*/React.createElement("div", {
+    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: { ...S.input, fontSize: 12, padding: "8px 10px" },
+    type: "number",
+    placeholder: "R$ m\xEDn",
+    value: priceMin,
+    onChange: e => setPriceMin(e.target.value)
+  }), /*#__PURE__*/React.createElement("input", {
+    style: { ...S.input, fontSize: 12, padding: "8px 10px" },
+    type: "number",
+    placeholder: "R$ m\xE1x",
+    value: priceMax,
+    onChange: e => setPriceMax(e.target.value)
+  }))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setSortBy("name");
+      setFilterAvail("all");
+      setFilterTipoVenda("all");
+      setPriceMin("");
+      setPriceMax("");
+    },
+    style: { ...S.btn("danger"), width: "100%", justifyContent: "center", padding: "7px", fontSize: 12 }
+  }, "Limpar filtros")), products.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
     icon: "\uD83D\uDCE6",
     title: "Nenhum produto",
     desc: "Importe NF-e ou cadastre manualmente.",
@@ -10480,7 +10852,9 @@ function PDVApp() {
       name: "plus",
       size: 14
     }), " Cadastrar"))
-  }) : products.filter(p => p.name.toLowerCase().includes(searchProd.toLowerCase())).map(prod => /*#__PURE__*/React.createElement("div", {
+  }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: { fontSize: 12, color: "#5A6080", marginBottom: 8 }
+  }, estoquePageList.length, " produto(s)"), estoquePageList.map(prod => /*#__PURE__*/React.createElement("div", {
     key: prod.id,
     style: {
       ...S.card,
@@ -10565,7 +10939,7 @@ function PDVApp() {
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "trash",
     size: 13
-  })))))), page === "clientes" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }))))))), page === "clientes" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
