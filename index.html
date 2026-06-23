@@ -97,6 +97,25 @@ const LOJA = {
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const nowTime = () => new Date().toTimeString().slice(0, 5);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+// ── Impressão de etiquetas Elgin L42 Pro Full (1 coluna 30x60mm ou 3 colunas 20x30mm) ──
+// items: array de { name, price, barcode }
+function printElginLabels(items, layout) {
+  if (!items || items.length === 0) return;
+  const w = window.open("", "_blank");
+  const pageCss = layout === "1col" ? "@page{size:30mm 60mm;margin:0}body{margin:0}" : "@page{size:20mm 30mm;margin:0}body{margin:0}";
+  const labelCss = layout === "1col" ? "width:30mm;height:60mm;padding:2mm 1.5mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:center;page-break-after:always;text-align:center;" : "width:20mm;height:30mm;padding:1mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:center;page-break-after:always;text-align:center;";
+  const nomeSize = layout === "1col" ? "11px" : "7px";
+  const precoSize = layout === "1col" ? "18px" : "11px";
+  const labelsHtml = items.map(item => {
+    const nome = (item.name || "").toUpperCase();
+    const preco = item.price ? fmt(item.price) : "—";
+    const code = item.barcode || "";
+    return "<div class='label'>" + "<div style='font-size:" + nomeSize + ";font-weight:700;line-height:1.15;max-height:2.4em;overflow:hidden'>" + nome + "</div>" + "<div style='font-size:" + precoSize + ";font-weight:900;color:#000;margin:1mm 0'>" + preco + "</div>" + (code ? "<svg class='bc' data-code='" + code + "'></svg><div style='font-size:6px;letter-spacing:1px'>" + code + "</div>" : "") + "</div>";
+  }).join("");
+  const html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Etiquetas</title>" + "<style>" + pageCss + "*{font-family:Arial,sans-serif}.label{" + labelCss + "border:0}" + (layout === "3col" ? ".wrap{display:flex;flex-wrap:wrap}" : "") + "</style></head><body>" + "<div class='wrap'>" + labelsHtml + "</div>" + "<script src='https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js'><" + "/script>" + "<script>" + "window.onload=function(){" + "document.querySelectorAll('.bc').forEach(function(el){" + "try{JsBarcode(el, el.getAttribute('data-code'), {format:'CODE128',width:1.3,height:28,displayValue:false,margin:0});}catch(e){}" + "});" + "setTimeout(function(){window.print();},350);" + "};" + "<" + "/script>" + "</body></html>";
+  w.document.write(html);
+  w.document.close();
+}
 const load = (k, d) => {
   try {
     const v = localStorage.getItem(k);
@@ -312,6 +331,7 @@ const _toRow = {
     min_stock: +(p.minStock || 5),
     unit: p.unit || 'unid',
     barcode: p.barcode || '',
+    barcodes_extra: Array.isArray(p.barcodesExtra) ? p.barcodesExtra : [],
     photo: p.photo || '',
     description: p.description || '',
     created_at: p.createdAt || Date.now()
@@ -1066,6 +1086,7 @@ function ProductSheet(_ref9) {
       minStock: (initial === null || initial === void 0 ? void 0 : initial.minStock) || "",
       unit: (initial === null || initial === void 0 ? void 0 : initial.unit) || "unid",
       barcode: (initial === null || initial === void 0 ? void 0 : initial.barcode) || "",
+      barcodesExtra: (initial === null || initial === void 0 ? void 0 : initial.barcodesExtra) || [],
       photo: (initial === null || initial === void 0 ? void 0 : initial.photo) || "",
       description: (initial === null || initial === void 0 ? void 0 : initial.description) || ""
     }),
@@ -1082,6 +1103,30 @@ function ProductSheet(_ref9) {
     _useState8 = _slicedToArray(_useState7, 2),
     scanBC = _useState8[0],
     setScanBC = _useState8[1];
+  const _useStateBE1 = useState(""),
+    _useStateBE2 = _slicedToArray(_useStateBE1, 2),
+    extraBCInput = _useStateBE2[0],
+    setExtraBCInput = _useStateBE2[1];
+  const _useStateBE3 = useState(false),
+    _useStateBE4 = _slicedToArray(_useStateBE3, 2),
+    scanBCExtra = _useStateBE4[0],
+    setScanBCExtra = _useStateBE4[1];
+  const addExtraBarcode = code => {
+    const c = (code || "").trim();
+    if (!c) return;
+    if (c === form.barcode || (form.barcodesExtra || []).includes(c)) return;
+    setForm(f => ({
+      ...f,
+      barcodesExtra: [...(f.barcodesExtra || []), c]
+    }));
+    setExtraBCInput("");
+  };
+  const removeExtraBarcode = code => {
+    setForm(f => ({
+      ...f,
+      barcodesExtra: (f.barcodesExtra || []).filter(b => b !== code)
+    }));
+  };
   const handlePhoto = async e => {
     var _e$target$files;
     const file = (_e$target$files = e.target.files) === null || _e$target$files === void 0 ? void 0 : _e$target$files[0];
@@ -1600,7 +1645,98 @@ function ProductSheet(_ref9) {
       setScanBC(false);
     },
     onClose: () => setScanBC(false)
-  })), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 5
+    }
+  }, "C\xF3digos de Barras Adicionais"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "var(--text-secondary)",
+      marginBottom: 8
+    }
+  }, "Use para vincular embalagens diferentes a este produto. S\xF3 o c\xF3digo principal acima aparece na etiqueta impressa."), (form.barcodesExtra || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 6,
+      marginBottom: 8
+    }
+  }, (form.barcodesExtra || []).map(code => /*#__PURE__*/React.createElement("div", {
+    key: code,
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      background: "var(--bg-elevated)",
+      border: "1px solid var(--border-default)",
+      borderRadius: 20,
+      padding: "5px 8px 5px 12px",
+      fontSize: 12
+    }
+  }, code, /*#__PURE__*/React.createElement("button", {
+    onClick: () => removeExtraBarcode(code),
+    style: {
+      background: "none",
+      border: "none",
+      color: "#ff3b3b",
+      cursor: "pointer",
+      padding: "2px 4px",
+      fontSize: 14,
+      lineHeight: 1
+    }
+  }, "\xD7")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    placeholder: "Adicionar outro c\xF3digo...",
+    value: extraBCInput,
+    onChange: e => setExtraBCInput(e.target.value),
+    onKeyDown: e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addExtraBarcode(extraBCInput);
+      }
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setScanBCExtra(true),
+    style: {
+      ...S.btn("ghost"),
+      padding: "10px 13px",
+      border: "1px solid #22d3ee40",
+      color: "#4A5BC4",
+      background: "#22d3ee10",
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "camera",
+    size: 17,
+    color: "#4A5BC4"
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => addExtraBarcode(extraBCInput),
+    style: {
+      ...S.btn("primary"),
+      padding: "10px 16px",
+      flexShrink: 0
+    }
+  }, "+")), scanBCExtra && /*#__PURE__*/React.createElement(ScannerBase, {
+    S: S,
+    title: "Bipar C\xF3digo Adicional",
+    subtitle: "Aponte para o c\xF3digo de outra embalagem",
+    onCode: code => {
+      addExtraBarcode(code);
+      setScanBCExtra(false);
+    },
+    onClose: () => setScanBCExtra(false)
+  }))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10
@@ -5549,6 +5685,9 @@ function ListaComprasPage(_ref20) {
     _useStateR8 = _slicedToArray(_useStateR7, 2),
     receberQty = _useStateR8[0],
     setReceberQty = _useStateR8[1];
+  // Busca produto pelo barcode (principal ou adicional)
+  const matchesBC = (p, code) => p.barcode === code || (Array.isArray(p.barcodesExtra) && p.barcodesExtra.includes(code));
+  const findProdByBC = code => (products || []).find(p => matchesBC(p, code));
   // Etiquetas
   const _useStateE1 = useState([]),
     _useStateE2 = _slicedToArray(_useStateE1, 2),
@@ -5625,10 +5764,8 @@ function ListaComprasPage(_ref20) {
     if (!receberModal) return;
     const qtdNum = parseFloat(String(receberQty).replace(",", ".")) || 0;
     if (qtdNum <= 0) { notify("Informe a quantidade recebida", "error"); return; }
-    // Busca produto pelo barcode
-    const prod = receberBarcode
-      ? (products || []).find(p => p.barcode === receberBarcode)
-      : null;
+    // Busca produto pelo barcode (principal ou adicional)
+    const prod = receberBarcode ? findProdByBC(receberBarcode) : null;
     if (prod && updateProduct) {
       // Produto já cadastrado — só atualiza estoque (e custo/venda se vieram do item)
       updateProduct(prod.id, {
@@ -5673,43 +5810,7 @@ function ListaComprasPage(_ref20) {
   const confirmarImpressao = () => {
     const lista = etiquetaModal;
     if (!lista || lista.length === 0) return;
-    const layout = etiquetaLayout; // "1col" = 30x60mm | "3col" = 20x30mm
-    const w = window.open("", "_blank");
-    const pageCss = layout === "1col"
-      ? "@page{size:30mm 60mm;margin:0}body{margin:0}"
-      : "@page{size:20mm 30mm;margin:0}body{margin:0}";
-    const labelCss = layout === "1col"
-      ? "width:30mm;height:60mm;padding:2mm 1.5mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:center;page-break-after:always;text-align:center;"
-      : "width:20mm;height:30mm;padding:1mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:center;page-break-after:always;text-align:center;";
-    const nomeSize = layout === "1col" ? "11px" : "7px";
-    const precoSize = layout === "1col" ? "18px" : "11px";
-    const labelsHtml = lista.map(item => {
-      const nome = (item.name || "").toUpperCase();
-      const preco = item.price ? fmt(item.price) : "—";
-      const code = item.barcode || "";
-      return "<div class='label'>" +
-        "<div style='font-size:" + nomeSize + ";font-weight:700;line-height:1.15;max-height:2.4em;overflow:hidden'>" + nome + "</div>" +
-        "<div style='font-size:" + precoSize + ";font-weight:900;color:#000;margin:1mm 0'>" + preco + "</div>" +
-        (code ? "<svg class='bc' data-code='" + code + "'></svg><div style='font-size:6px;letter-spacing:1px'>" + code + "</div>" : "") +
-        "</div>";
-    }).join("");
-    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Etiquetas</title>" +
-      "<style>" + pageCss + "*{font-family:Arial,sans-serif}.label{" + labelCss + "border:0}" +
-      (layout === "3col" ? ".wrap{display:flex;flex-wrap:wrap}" : "") +
-      "</style></head><body>" +
-      "<div class='wrap'>" + labelsHtml + "</div>" +
-      "<script src='https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js'><" + "/script>" +
-      "<script>" +
-      "window.onload=function(){" +
-      "document.querySelectorAll('.bc').forEach(function(el){" +
-      "try{JsBarcode(el, el.getAttribute('data-code'), {format:'CODE128',width:1.3,height:28,displayValue:false,margin:0});}catch(e){}" +
-      "});" +
-      "setTimeout(function(){window.print();},350);" +
-      "};" +
-      "<" + "/script>" +
-      "</body></html>";
-    w.document.write(html);
-    w.document.close();
+    printElginLabels(lista, etiquetaLayout);
     // Remove os itens impressos da lista de compras
     const idsImpressos = lista.map(i => i.id);
     persist(items.filter(i => !idsImpressos.includes(i.id)));
@@ -5784,10 +5885,10 @@ function ListaComprasPage(_ref20) {
       onClick: () => setReceberScanner(true),
       style: { ...S.btn("primary"), padding: "0 16px", flexShrink: 0 }
     }, "📷")),
-  receberBarcode && (products || []).find(p => p.barcode === receberBarcode) && /*#__PURE__*/React.createElement("div", {
+  receberBarcode && findProdByBC(receberBarcode) && /*#__PURE__*/React.createElement("div", {
     style: { background: "#22c55e15", border: "1px solid #22c55e50", borderRadius: 10, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: "#22c55e" }
-  }, "✓ Produto encontrado: ", (products || []).find(p => p.barcode === receberBarcode).name),
-  receberBarcode && !(products || []).find(p => p.barcode === receberBarcode) && /*#__PURE__*/React.createElement("div", {
+  }, "✓ Produto encontrado: ", findProdByBC(receberBarcode).name),
+  receberBarcode && !findProdByBC(receberBarcode) && /*#__PURE__*/React.createElement("div", {
     style: { background: "#f59e0b15", border: "1px solid #f59e0b50", borderRadius: 10, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: "#f59e0b" }
   }, "⚠ Produto novo — será cadastrado automaticamente no estoque"),
   /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 } }, "Quantidade recebida"),
@@ -8919,6 +9020,14 @@ function PDVApp() {
     _useState228b = _slicedToArray(_useState227b, 2),
     filterTipoVenda = _useState228b[0],
     setFilterTipoVenda = _useState228b[1];
+  const _useStateEL1 = useState(null),
+    _useStateEL2 = _slicedToArray(_useStateEL1, 2),
+    etiquetaProdModal = _useStateEL2[0],
+    setEtiquetaProdModal = _useStateEL2[1];
+  const _useStateEL3 = useState("3col"),
+    _useStateEL4 = _slicedToArray(_useStateEL3, 2),
+    etiquetaProdLayout = _useStateEL4[0],
+    setEtiquetaProdLayout = _useStateEL4[1];
   const _useState229 = useState(false),
     _useState230 = _slicedToArray(_useState229, 2),
     scannerOpen = _useState230[0],
@@ -9025,6 +9134,7 @@ function PDVApp() {
       minStock: form.minStock ? +form.minStock : 0,
       unit: form.unit || "unid",
       barcode: form.barcode || "",
+      barcodesExtra: Array.isArray(form.barcodesExtra) ? form.barcodesExtra : [],
       photo: form.photo || "",
       description: form.description || ""
     };
@@ -9362,7 +9472,7 @@ function PDVApp() {
     if (priceMin !== "") list = list.filter(p => p.price >= +priceMin);
     if (priceMax !== "") list = list.filter(p => p.price <= +priceMax);
     if (searchProd && searchProd.match(/^[0-9]{6,}/)) {
-      const byBarcode = products.filter(p => p.barcode && p.barcode.includes(searchProd));
+      const byBarcode = products.filter(p => (p.barcode && p.barcode.includes(searchProd)) || (Array.isArray(p.barcodesExtra) && p.barcodesExtra.some(b => b.includes(searchProd))));
       if (byBarcode.length > 0) list = [...new Map([...byBarcode, ...list].map(p => [p.id, p])).values()];
     }
     return [...list].sort((a, b) => {
@@ -10708,7 +10818,8 @@ function PDVApp() {
     title: "Leitor de C\xF3digo",
     subtitle: "Aponte para o c\xF3digo de barras do produto",
     onCode: code => {
-      const p = products.find(x => x.barcode && x.barcode.trim() === code.trim());
+      const c = code.trim();
+      const p = products.find(x => (x.barcode && x.barcode.trim() === c) || (Array.isArray(x.barcodesExtra) && x.barcodesExtra.some(b => b.trim() === c)));
       if (p) {
         addToCart(p);
         notify(p.name + " ✓", "info");
@@ -11021,7 +11132,23 @@ function PDVApp() {
     }
   }, fmt(prod.price)), /*#__PURE__*/React.createElement("span", {
     style: S.badge(prod.stock === 0 ? "#ff3b3b" : prod.stock < (prod.minStock || 10) ? "#F07030" : "#4ade80")
-  }, prod.stock === 0 ? "Esgotado" : prod.stock + " " + (prod.stock < (prod.minStock || 10) ? "⚠️" : "ok"))))))), page === "clientes" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, prod.stock === 0 ? "Esgotado" : prod.stock + " " + (prod.stock < (prod.minStock || 10) ? "⚠️" : "ok"))), /*#__PURE__*/React.createElement("button", {
+    onClick: e => {
+      e.stopPropagation();
+      setEtiquetaProdModal(prod);
+    },
+    title: "Imprimir etiqueta",
+    style: {
+      background: "none",
+      border: "none",
+      color: "#E8682A",
+      cursor: "pointer",
+      padding: "4px 6px",
+      fontSize: 18,
+      lineHeight: 1,
+      flexShrink: 0
+    }
+  }, "\uD83C\uDFF7\uFE0F"))))), page === "clientes" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
@@ -11584,7 +11711,48 @@ function PDVApp() {
       setEditProd(null);
       setProdSheetPrefill("");
     }
-  }), custSheet && /*#__PURE__*/React.createElement(CustomerSheet, {
+  }), etiquetaProdModal && /*#__PURE__*/React.createElement("div", {
+    style: { position: "fixed", inset: 0, zIndex: 4000, background: "rgba(0,0,0,.75)", display: "flex", alignItems: "flex-end" }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: { background: "var(--bg-card)", borderRadius: "20px 20px 0 0", padding: 24, width: "100%", maxWidth: 480, margin: "0 auto" }
+  }, /*#__PURE__*/React.createElement("div", { style: { fontSize: 16, fontWeight: 700, marginBottom: 4, color: "#E8682A" } }, "🏷️ Imprimir Etiqueta"),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, color: "var(--text-secondary)", marginBottom: 18 } }, etiquetaProdModal.name),
+  /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 } }, "Layout (Elgin L42 Pro Full)"),
+  /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, marginBottom: 20 } },
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEtiquetaProdLayout("1col"),
+      style: {
+        flex: 1, padding: "14px 8px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
+        border: "2px solid " + (etiquetaProdLayout === "1col" ? "#E8682A" : "var(--border-default)"),
+        background: etiquetaProdLayout === "1col" ? "#E8682A15" : "var(--bg-elevated)",
+        color: etiquetaProdLayout === "1col" ? "#E8682A" : "var(--text-secondary)"
+      }
+    }, /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, "1 Coluna"), /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, marginTop: 2 } }, "30 x 60 mm")),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEtiquetaProdLayout("3col"),
+      style: {
+        flex: 1, padding: "14px 8px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
+        border: "2px solid " + (etiquetaProdLayout === "3col" ? "#E8682A" : "var(--border-default)"),
+        background: etiquetaProdLayout === "3col" ? "#E8682A15" : "var(--bg-elevated)",
+        color: etiquetaProdLayout === "3col" ? "#E8682A" : "var(--text-secondary)"
+      }
+    }, /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, "3 Colunas"), /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, marginTop: 2 } }, "20 x 30 mm"))),
+  !etiquetaProdModal.barcode && /*#__PURE__*/React.createElement("div", {
+    style: { background: "#f59e0b15", border: "1px solid #f59e0b50", borderRadius: 10, padding: "8px 12px", marginBottom: 16, fontSize: 12, color: "#f59e0b" }
+  }, "⚠ Este produto não tem código de barras cadastrado — a etiqueta sairá sem código."),
+  /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10 } },
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEtiquetaProdModal(null),
+      style: { ...S.btn("ghost"), flex: 1, justifyContent: "center", padding: "13px" }
+    }, "Cancelar"),
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        printElginLabels([etiquetaProdModal], etiquetaProdLayout);
+        setEtiquetaProdModal(null);
+        notify("Etiqueta enviada para impressão ✓");
+      },
+      style: { ...S.btn("primary"), flex: 1, justifyContent: "center", padding: "13px" }
+    }, "🖨️ Imprimir")))), custSheet && /*#__PURE__*/React.createElement(CustomerSheet, {
     S: S,
     initial: editCust,
     onSave: saveCustomer,
