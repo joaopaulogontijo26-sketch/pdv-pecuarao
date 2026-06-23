@@ -10941,7 +10941,7 @@ function PDVApp() {
       if (!window.confirm(`Migrar ${comBase64} foto(s) antiga(s) para o Storage?`)) return;
       notify('Migrando fotos...');
       const result = await migratePhotosToStorage(products, (done, total) => {
-        if (done === total) notify(`${(result === null || result === void 0 ? void 0 : result.migrated) || done} migrada(s), ${(result === null || result === void 0 ? void 0 : result.failed) || 0} falha(s)`);
+        notify(`Migrando fotos... ${done}/${total}`);
       });
       if (result.products) persistP(result.products);
       notify(`✓ ${result.migrated} migrada(s)${result.failed ? ', ' + result.failed + ' falha(s)' : ''}`);
