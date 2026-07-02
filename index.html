@@ -459,6 +459,13 @@ async function syncSave(col, val) {
     const transform = _toRow[col];
     if (!transform || !Array.isArray(val)) return false;
     const rows = val.map(transform);
+    // IMPORTANTE: syncSave agora é ADITIVO (upsert por id). NUNCA apaga
+    // linhas do servidor que não estejam no array local — isso já causava
+    // perda de vendas/entregas quando dois aparelhos/abas ficavam com o
+    // estado local dessincronizado (ex: celular vende sem ainda ter
+    // recebido a venda feita no PC; ao sincronizar, a venda do PC "sumia"
+    // do histórico porque não estava no array local do celular).
+    // Exclusões reais agora são feitas explicitamente via syncDeleteOne().
     if (rows.length > 0) {
       for (let i = 0; i < rows.length; i += 200) {
         const batch = rows.slice(i, i + 200);
@@ -472,29 +479,29 @@ async function syncSave(col, val) {
         });
         if (!r.ok) throw new Error('HTTP ' + r.status);
       }
-      // Deleta do Supabase registros que foram removidos localmente
-      const ids = rows.map(r => r.id).filter(Boolean);
-      if (ids.length > 0) {
-        await fetch(SUPABASE_URL + '/rest/v1/' + col + '?id=not.in.(' + ids.join(',') + ')', {
-          method: 'DELETE',
-          headers: {
-            ..._SB_H(),
-            'Content-Type': 'application/json'
-          }
-        });
-      }
-    } else {
-      // Array vazio — deleta todos da tabela
-      await fetch(SUPABASE_URL + '/rest/v1/' + col + '?id=neq._vazio_', {
-        method: 'DELETE',
-        headers: _SB_H()
-      });
     }
     if (_onSyncStatus) _onSyncStatus(true);
     return true;
   } catch (e) {
     console.warn('[PDV] syncSave falhou:', col, e.message);
     if (_onSyncStatus) _onSyncStatus(false);
+    return false;
+  }
+}
+// Apaga UM registro específico no Supabase (usado nos botões de excluir).
+// Diferente do syncSave antigo, isso nunca apaga nada além do id informado.
+async function syncDeleteOne(col, id) {
+  const key = _SB_KEY();
+  if (!key || !id) return false;
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/' + col + '?id=eq.' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: _SB_H()
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return true;
+  } catch (e) {
+    console.warn('[PDV] syncDeleteOne falhou:', col, id, e.message);
     return false;
   }
 }
@@ -5818,7 +5825,10 @@ function ListaComprasPage(_ref20) {
     setEtiquetaModal(null);
     notify(lista.length + " etiqueta(s) enviada(s) para impressão ✓");
   };
-  const removeItem = id => persist(items.filter(i => i.id !== id));
+  const removeItem = id => {
+    syncDeleteOne("lista_compras", id);
+    persist(items.filter(i => i.id !== id));
+  };
   const saveEdit = id => {
     if (!editText.trim()) return;
     persist(items.map(i => i.id === id ? { ...i, name: editText.trim() } : i));
@@ -7379,6 +7389,7 @@ function EntregasPage(_ref24) {
     notify("Observação salva ✓");
   };
   const excluirPedido = id => {
+    syncDeleteOne("entregas", id);
     persistE(pedidos.filter(p => p.id !== id));
     notify("Pedido removido.", "warn");
   };
@@ -8292,7 +8303,10 @@ function FornecedoresPage(_ref28) {
       ...S.btn("danger"),
       padding: "6px 9px"
     },
-    onClick: () => persist(lista.filter(x => x.id !== f.id))
+    onClick: () => {
+      syncDeleteOne("fornecedores", f.id);
+      persist(lista.filter(x => x.id !== f.id));
+    }
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "trash",
     size: 13
@@ -9306,7 +9320,7 @@ function PDVApp() {
         criadoHora: nowTime(),
         vendaId: saleId
       };
-      save("pdv_entregas", [novoPedido, ...peds]);
+      persistE([novoPedido, ...peds]);
       notify("Venda finalizada + Entrega criada! 🚚");
     } else notify("Venda de " + fmt(cartTotal) + " finalizada! ✓");
     setCart([]);
@@ -11265,6 +11279,7 @@ function PDVApp() {
     onClick: () => setDeleteTarget({
       label: c.name,
       onConfirm: () => {
+        syncDeleteOne("customers", c.id);
         persistC(customers.filter(x => x.id !== c.id));
         notify("Cliente removido.", "warn");
         setDeleteTarget(null);
@@ -11478,6 +11493,7 @@ function PDVApp() {
     onClick: () => setDeleteTarget({
       label: "Venda " + s.customer,
       onConfirm: () => {
+        syncDeleteOne("sales", s.id);
         persistS(sales.filter(x => x.id !== s.id));
         setDeleteTarget(null);
         notify("Venda removida.", "warn");
@@ -11698,6 +11714,7 @@ function PDVApp() {
     onDelete: editProd ? () => setDeleteTarget({
       label: editProd.name,
       onConfirm: () => {
+        syncDeleteOne("products", editProd.id);
         persistP(products.filter(x => x.id !== editProd.id));
         notify("Produto removido.", "warn");
         setDeleteTarget(null);
