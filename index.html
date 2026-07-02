@@ -10841,7 +10841,11 @@ function PDVApp() {
       setScannerOpen(false);
     },
     onClose: () => setScannerOpen(false)
-  }))), page === "atacado" && /*#__PURE__*/React.createElement(AtacadoPage, {
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: page === "atacado" ? "block" : "none"
+    }
+  }, /*#__PURE__*/React.createElement(AtacadoPage, {
     S: S,
     products: products,
     customers: customers,
@@ -10853,7 +10857,7 @@ function PDVApp() {
     sales: sales,
     notify: notify,
     currentUser: currentUser
-  }), page === "entregas" && /*#__PURE__*/React.createElement(EntregasPage, {
+  })), page === "entregas" && /*#__PURE__*/React.createElement(EntregasPage, {
     S: S,
     sales: sales,
     customers: customers,
