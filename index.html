@@ -10217,6 +10217,54 @@ function PDVApp() {
     name: "import",
     size: 15,
     color: "#4A5BC4"
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.card,
+      marginBottom: 12,
+      cursor: "pointer",
+      padding: "12px 14px"
+    },
+    onClick: async () => {
+      notify("Baixando fotos...");
+      await downloadPhotos(products, (done, total) => {
+        if (done === total) notify(`${done} fotos baixadas! ✓`);
+      });
+      const updated = await applyPhotoCache(products);
+      persistP(updated);
+      const comBase64 = updated.filter(p => p.photo && p.photo.startsWith('data:image')).length;
+      if (comBase64 === 0) {
+        notify('Nenhuma foto antiga para migrar ✓');
+        return;
+      }
+      if (!window.confirm(`Migrar ${comBase64} foto(s) antiga(s) para o Storage?`)) return;
+      notify('Migrando fotos...');
+      const result = await migratePhotosToStorage(updated, (done, total) => {
+        notify(`Migrando fotos... ${done}/${total}`);
+      });
+      if (result.products) persistP(result.products);
+      notify(`✓ ${result.migrated} migrada(s)${result.failed ? ', ' + result.failed + ' falha(s)' : ''}`);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      marginBottom: 2
+    }
+  }, "\uD83D\uDD04 Migrar Fotos"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "var(--text-secondary)"
+    }
+  }, "Baixa e move fotos antigas para o Storage")), /*#__PURE__*/React.createElement(Icon, {
+    name: "import",
+    size: 15,
+    color: "#4A5BC4"
   }))), listaPendentes > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.card,
@@ -10928,54 +10976,6 @@ function PDVApp() {
     name: "sliders",
     size: 17
   })), /*#__PURE__*/React.createElement("button", {
-    style: {
-      ...S.btn("ghost"),
-      flexShrink: 0,
-      fontSize: 12,
-      padding: "9px 12px"
-    },
-    onClick: async () => {
-      notify("Baixando fotos...");
-      const n = await downloadPhotos(products, (done, total) => {
-        if (done === total) notify(`${done} fotos baixadas! ✓`);
-      });
-      // Aplica ao estado atual
-      const updated = await applyPhotoCache(products);
-      persistP(updated);
-    }
-  }, "\uD83D\uDCF7 Fotos"), /*#__PURE__*/React.createElement("button", {
-    style: {
-      ...S.btn("ghost"),
-      flexShrink: 0,
-      fontSize: 12,
-      padding: "9px 12px"
-    },
-    onClick: async () => {
-      const comBase64 = products.filter(p => p.photo && p.photo.startsWith('data:image')).length;
-      if (comBase64 === 0) {
-        notify('Nenhuma foto antiga para migrar ✓');
-        return;
-      }
-      if (!window.confirm(`Migrar ${comBase64} foto(s) antiga(s) para o Storage?`)) return;
-      notify('Migrando fotos...');
-      const result = await migratePhotosToStorage(products, (done, total) => {
-        notify(`Migrando fotos... ${done}/${total}`);
-      });
-      if (result.products) persistP(result.products);
-      notify(`✓ ${result.migrated} migrada(s)${result.failed ? ', ' + result.failed + ' falha(s)' : ''}`);
-    }
-  }, "\uD83D\uDD04 Migrar Fotos"), /*#__PURE__*/React.createElement("button", {
-    style: {
-      ...S.btn("ghost"),
-      flexShrink: 0,
-      fontSize: 12,
-      padding: "9px 12px"
-    },
-    onClick: () => goTo("importar")
-  }, /*#__PURE__*/React.createElement(Icon, {
-    name: "import",
-    size: 13
-  }), " Importar"), /*#__PURE__*/React.createElement("button", {
     style: {
       ...S.btn("primary"),
       flexShrink: 0
