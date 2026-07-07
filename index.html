@@ -9058,7 +9058,8 @@ function PDVApp() {
       customer: "",
       payment: "",
       date: "",
-      items: []
+      items: [],
+      vendedor: ""
     }),
     _useState236 = _slicedToArray(_useState235, 2),
     editSaleForm = _useState236[0],
@@ -9463,6 +9464,130 @@ function PDVApp() {
       notify("PDF exportado! ✓");
     } catch {
       notify("Erro ao gerar PDF.", "error");
+    }
+  };
+  const exportCatalogoAtacadoPDF = async () => {
+    const itensCatalogo = products.filter(p => p.atacadoHabilitado === true && p.stock > 0).sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name));
+    if (itensCatalogo.length === 0) {
+      notify("Nenhum produto habilitado para atacado.", "warn");
+      return;
+    }
+    notify("Gerando catálogo... 0/" + itensCatalogo.length, "info");
+    try {
+      for (const src of ["https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"]) {
+        if (!document.querySelector('script[src="' + src + '"]')) await new Promise((res, rej) => {
+          const s = document.createElement("script");
+          s.src = src;
+          s.onload = res;
+          s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      }
+      // Resolve a foto de cada produto para um data URL (cache local > URL remota > sem foto)
+      const getPhotoDataUrl = async p => {
+        if (!p.photo) return null;
+        if (p.photo.startsWith("data:image")) return p.photo;
+        try {
+          const cached = await _photoDB.get(p.id);
+          if (cached) return cached;
+        } catch (_) {}
+        try {
+          const r = await fetch(p.photo);
+          if (!r.ok) return null;
+          const blob = await r.blob();
+          const dataUrl = await new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onload = e => res(e.target.result);
+            reader.onerror = rej;
+            reader.readAsDataURL(blob);
+          });
+          try {
+            await _photoDB.set(p.id, dataUrl);
+          } catch (_) {}
+          return dataUrl;
+        } catch (_) {
+          return null;
+        }
+      };
+      const jsPDF = window.jspdf.jsPDF;
+      const d = new jsPDF();
+      const pageW = d.internal.pageSize.getWidth();
+      const pageH = d.internal.pageSize.getHeight();
+      const margin = 12;
+      const cols = 3;
+      const gap = 6;
+      const cardW = (pageW - margin * 2 - gap * (cols - 1)) / cols;
+      const cardH = 62;
+      const imgH = 38;
+      let col = 0;
+      let row = 0;
+      let currentCat = null;
+      let y = margin;
+      const drawHeader = () => {
+        d.setFontSize(16);
+        d.setTextColor(232, 104, 42);
+        d.text("Cat\xE1logo Atacado \u2014 Pecu\xE3o Gontijo", margin, 16);
+        d.setFontSize(9);
+        d.setTextColor(120);
+        d.text("Gerado: " + new Date().toLocaleString("pt-BR"), margin, 22);
+        y = 30;
+      };
+      drawHeader();
+      let done = 0;
+      for (const p of itensCatalogo) {
+        if ((p.category || "Outros") !== currentCat) {
+          if (currentCat !== null) {
+            col = 0;
+            row += 1;
+            y += cardH + gap;
+          }
+          currentCat = p.category || "Outros";
+          if (y + 12 > pageH - margin) {
+            d.addPage();
+            drawHeader();
+          }
+          d.setFontSize(11);
+          d.setTextColor(60);
+          d.text(currentCat, margin, y);
+          y += 6;
+        }
+        if (y + cardH > pageH - margin) {
+          d.addPage();
+          drawHeader();
+          col = 0;
+        }
+        const x = margin + col * (cardW + gap);
+        d.setDrawColor(220);
+        d.setFillColor(250, 250, 250);
+        d.roundedRect(x, y, cardW, cardH, 2, 2, "FD");
+        const dataUrl = await getPhotoDataUrl(p);
+        if (dataUrl) {
+          try {
+            const fmtImg = dataUrl.includes("image/png") ? "PNG" : "JPEG";
+            d.addImage(dataUrl, fmtImg, x + 3, y + 3, cardW - 6, imgH, undefined, "FAST");
+          } catch (_) {}
+        }
+        d.setFontSize(8.5);
+        d.setTextColor(30);
+        const nomeLinhas = d.splitTextToSize(p.name, cardW - 6);
+        d.text(nomeLinhas.slice(0, 2), x + 3, y + imgH + 8);
+        d.setFontSize(10);
+        d.setTextColor(232, 104, 42);
+        d.text(fmt(p.priceAtacado || p.price), x + 3, y + cardH - 4);
+        done++;
+        if (done % 5 === 0) notify("Gerando catálogo... " + done + "/" + itensCatalogo.length, "info");
+        col++;
+        if (col >= cols) {
+          col = 0;
+          row += 1;
+          y += cardH + gap;
+        }
+      }
+      d.save("catalogo-atacado-" + todayStr() + ".pdf");
+      notify("Catálogo PDF gerado! ✓ (" + itensCatalogo.length + " produtos)");
+    } catch (e) {
+      console.warn("[PDV] catálogo PDF falhou:", e);
+      notify("Erro ao gerar catálogo.", "error");
     }
   };
   const categories = useMemo(() => ["Todos", ...Array.from(new Set(products.map(p => p.category)))], products);
@@ -10977,6 +11102,17 @@ function PDVApp() {
     size: 17
   })), /*#__PURE__*/React.createElement("button", {
     style: {
+      ...S.btn("ghost"),
+      flexShrink: 0,
+      fontSize: 12,
+      padding: "9px 12px"
+    },
+    onClick: exportCatalogoAtacadoPDF
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "import",
+    size: 13
+  }), " Cat\xE1logo PDF"), /*#__PURE__*/React.createElement("button", {
+    style: {
       ...S.btn("primary"),
       flexShrink: 0
     },
@@ -11482,7 +11618,8 @@ function PDVApp() {
         date: s.date,
         items: s.items.map(i => ({
           ...i
-        }))
+        })),
+        vendedor: s.vendedor || ""
       });
     },
     style: {
@@ -11557,6 +11694,27 @@ function PDVApp() {
   }, ["Dinheiro", "Cartão Débito", "Cartão Crédito", "Pix", "Vale Refeição", "A Prazo"].map(m => /*#__PURE__*/React.createElement("option", {
     key: m
   }, m)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 5
+    }
+  }, "Vendedor (comiss\xE3o)"), /*#__PURE__*/React.createElement("select", {
+    style: S.input,
+    value: editSaleForm.vendedor,
+    onChange: e => setEditSaleForm(f => ({
+      ...f,
+      vendedor: e.target.value
+    }))
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 Sem vendedor / sem comiss\xE3o \u2014"), (users || []).filter(u => u.comissao > 0).map(u => /*#__PURE__*/React.createElement("option", {
+    key: u.id,
+    value: u.name
+  }, u.name, " \xB7 ", u.comissao, "% base")))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 14
     }
@@ -11695,13 +11853,23 @@ function PDVApp() {
     },
     onClick: () => {
       const newTotal = editSaleForm.items.reduce((s, i) => s + i.qty * i.price, 0);
+      const vendedorUser = editSaleForm.vendedor ? (users || []).find(u => u.name === editSaleForm.vendedor) : null;
+      const comissaoCalc = vendedorUser ? editSaleForm.items.reduce((s, i) => {
+        const prod = products.find(p => p.name === i.name);
+        const rate = prod && prod.comissaoProd > 0 ? prod.comissaoProd : vendedorUser.comissao || 0;
+        return s + i.price * i.qty * rate / 100;
+      }, 0) : 0;
       persistS(sales.map(x => x.id === editSale.id ? {
         ...x,
         customer: editSaleForm.customer,
         payment: editSaleForm.payment,
         date: editSaleForm.date,
         items: editSaleForm.items,
-        total: newTotal
+        total: newTotal,
+        vendedor: editSaleForm.vendedor || "",
+        tipo: editSaleForm.vendedor ? "atacado" : x.tipo,
+        comissaoValor: comissaoCalc,
+        comissaoPaga: editSaleForm.vendedor === x.vendedor ? x.comissaoPaga : false
       } : x));
       notify("Venda atualizada ✓");
       setEditSale(null);
