@@ -135,15 +135,48 @@ const save = (k, v) => {
 // instável). O servidor "ganha" quando o mesmo id existe nos dois lados,
 // mas um registro que só existe localmente NUNCA é descartado aqui — ele
 // fica visível até a próxima sincronização conseguir enviá-lo pra frente.
-const mergeById = (local, remote) => {
+// "excludeIds" são registros que o usuário excluiu por aqui: mesmo que o
+// servidor ainda responda com eles (ex: o DELETE falhou por instabilidade
+// de rede, ou ainda não terminou), eles não voltam a aparecer na tela.
+const mergeById = function (local, remote) {
+  let excludeIds = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
   const map = new Map();
   (Array.isArray(remote) ? remote : []).forEach(r => {
-    if (r && r.id != null) map.set(r.id, r);
+    if (r && r.id != null && !(excludeIds && excludeIds.has(r.id))) map.set(r.id, r);
   });
   (Array.isArray(local) ? local : []).forEach(l => {
-    if (l && l.id != null && !map.has(l.id)) map.set(l.id, l);
+    if (l && l.id != null && !map.has(l.id) && !(excludeIds && excludeIds.has(l.id))) map.set(l.id, l);
   });
   return Array.from(map.values());
+};
+
+// ── EXCLUSÕES PENDENTES (tombstones) ──────────────────────────────────────────
+// Registra localmente o que foi excluído, pra nunca "voltar" na tela mesmo se
+// o DELETE no servidor demorar, falhar por rede instável, ou (caso mais comum)
+// for bloqueado por permissão (RLS) no Supabase — nesse caso o item some da
+// tela e o app tenta reenviar o DELETE sozinho a cada carregamento.
+const _TOMB_KEY = "pdv_tombstones";
+const getTombstones = () => load(_TOMB_KEY, {});
+const addTombstone = (col, id) => {
+  const t = getTombstones();
+  t[col] = Array.from(new Set([...(t[col] || []), id]));
+  save(_TOMB_KEY, t);
+};
+const clearTombstone = (col, id) => {
+  const t = getTombstones();
+  if (t[col]) t[col] = t[col].filter(x => x !== id);
+  save(_TOMB_KEY, t);
+};
+// Tenta de novo excluir no servidor tudo que ficou pendente (chamado ao
+// carregar o app / clicar em Atualizar).
+const retryTombstones = async () => {
+  const t = getTombstones();
+  for (const col of Object.keys(t)) {
+    for (const id of t[col] || []) {
+      const ok = await syncDeleteOne(col, id);
+      if (ok) clearTombstone(col, id);
+    }
+  }
 };
 
 // ── BANCO DE DADOS: SERVIDOR É A FONTE ÚNICA DE VERDADE ───────────────────────
@@ -5889,7 +5922,10 @@ function ListaComprasPage(_ref20) {
     notify(lista.length + " etiqueta(s) enviada(s) para impressão ✓");
   };
   const removeItem = id => {
-    syncDeleteOne("lista_compras", id);
+    addTombstone("lista_compras", id);
+    syncDeleteOne("lista_compras", id).then(ok => {
+      if (ok) clearTombstone("lista_compras", id);
+    });
     persist(items.filter(i => i.id !== id));
   };
   const saveEdit = id => {
@@ -7452,8 +7488,11 @@ function EntregasPage(_ref24) {
     notify("Observação salva ✓");
   };
   const excluirPedido = id => {
-    syncDeleteOne("entregas", id);
+    addTombstone("entregas", id);
     persistE(pedidos.filter(p => p.id !== id));
+    syncDeleteOne("entregas", id).then(ok => {
+      if (ok) clearTombstone("entregas", id);
+    });
     notify("Pedido removido.", "warn");
   };
   const lancarNoHistorico = ped => {
@@ -8409,7 +8448,10 @@ function FornecedoresPage(_ref28) {
       padding: "6px 9px"
     },
     onClick: () => {
-      syncDeleteOne("fornecedores", f.id);
+      addTombstone("fornecedores", f.id);
+      syncDeleteOne("fornecedores", f.id).then(ok => {
+        if (ok) clearTombstone("fornecedores", f.id);
+      });
       persist(lista.filter(x => x.id !== f.id));
     }
   }, /*#__PURE__*/React.createElement(Icon, {
@@ -9198,23 +9240,26 @@ function PDVApp() {
     _syncRef.current = true;
     syncLoad().then(async data => {
       if (data) {
-        if (Array.isArray(data.products)) setProducts(prev => mergeById(prev, data.products));
-        if (Array.isArray(data.customers)) setCustomers(prev => mergeById(prev, data.customers));
+        const tomb = getTombstones();
+        const tset = col => new Set(tomb[col] || []);
+        if (Array.isArray(data.products)) setProducts(prev => mergeById(prev, data.products, tset("products")));
+        if (Array.isArray(data.customers)) setCustomers(prev => mergeById(prev, data.customers, tset("customers")));
         if (Array.isArray(data.sales)) setSales(prev => {
-          const merged = mergeById(prev, data.sales);
+          const merged = mergeById(prev, data.sales, tset("sales"));
           const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.sales || []).some(r => r.id === l.id));
           if (somenteLocal.length > 0) syncSave("sales", merged);
           return merged;
         });
         if (Array.isArray(data.entregas)) setPedidos(prev => {
-          const merged = mergeById(prev, data.entregas);
+          const merged = mergeById(prev, data.entregas, tset("entregas"));
           const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.entregas || []).some(r => r.id === l.id));
           if (somenteLocal.length > 0) syncSave("entregas", merged);
           return merged;
         });
-        if (Array.isArray(data.fornecedores)) setFornecedores(prev => mergeById(prev, data.fornecedores));
+        if (Array.isArray(data.fornecedores)) setFornecedores(prev => mergeById(prev, data.fornecedores, tset("fornecedores")));
         if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
         setServerOk(true);
+        retryTombstones();
       } else {
         setServerOk(false);
       }
@@ -9232,23 +9277,26 @@ function PDVApp() {
     try {
       const data = await syncLoad();
       if (data) {
-        if (Array.isArray(data.products)) setProducts(prev => mergeById(prev, data.products));
-        if (Array.isArray(data.customers)) setCustomers(prev => mergeById(prev, data.customers));
+        const tomb = getTombstones();
+        const tset = col => new Set(tomb[col] || []);
+        if (Array.isArray(data.products)) setProducts(prev => mergeById(prev, data.products, tset("products")));
+        if (Array.isArray(data.customers)) setCustomers(prev => mergeById(prev, data.customers, tset("customers")));
         if (Array.isArray(data.sales)) setSales(prev => {
-          const merged = mergeById(prev, data.sales);
+          const merged = mergeById(prev, data.sales, tset("sales"));
           const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.sales || []).some(r => r.id === l.id));
           if (somenteLocal.length > 0) syncSave("sales", merged);
           return merged;
         });
         if (Array.isArray(data.entregas)) setPedidos(prev => {
-          const merged = mergeById(prev, data.entregas);
+          const merged = mergeById(prev, data.entregas, tset("entregas"));
           const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.entregas || []).some(r => r.id === l.id));
           if (somenteLocal.length > 0) syncSave("entregas", merged);
           return merged;
         });
-        if (Array.isArray(data.fornecedores)) setFornecedores(prev => mergeById(prev, data.fornecedores));
+        if (Array.isArray(data.fornecedores)) setFornecedores(prev => mergeById(prev, data.fornecedores, tset("fornecedores")));
         if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
         setServerOk(true);
+        retryTombstones();
         if (showNotify) notify('Dados atualizados! ✓');
         return true;
       }
@@ -11561,7 +11609,10 @@ function PDVApp() {
     onClick: () => setDeleteTarget({
       label: c.name,
       onConfirm: () => {
-        syncDeleteOne("customers", c.id);
+        addTombstone("customers", c.id);
+        syncDeleteOne("customers", c.id).then(ok => {
+          if (ok) clearTombstone("customers", c.id);
+        });
         persistC(customers.filter(x => x.id !== c.id));
         notify("Cliente removido.", "warn");
         setDeleteTarget(null);
@@ -11809,7 +11860,10 @@ function PDVApp() {
     onClick: () => setDeleteTarget({
       label: "Venda " + s.customer,
       onConfirm: () => {
-        syncDeleteOne("sales", s.id);
+        addTombstone("sales", s.id);
+        syncDeleteOne("sales", s.id).then(ok => {
+          if (ok) clearTombstone("sales", s.id);
+        });
         persistS(sales.filter(x => x.id !== s.id));
         setDeleteTarget(null);
         notify("Venda removida.", "warn");
@@ -12061,7 +12115,10 @@ function PDVApp() {
     onDelete: editProd ? () => setDeleteTarget({
       label: editProd.name,
       onConfirm: () => {
-        syncDeleteOne("products", editProd.id);
+        addTombstone("products", editProd.id);
+        syncDeleteOne("products", editProd.id).then(ok => {
+          if (ok) clearTombstone("products", editProd.id);
+        });
         persistP(products.filter(x => x.id !== editProd.id));
         notify("Produto removido.", "warn");
         setDeleteTarget(null);
