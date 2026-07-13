@@ -5433,6 +5433,8 @@ function AtacadoPage(_ref19) {
     value: pagamento,
     onChange: e => setPagamento(e.target.value)
   }, /*#__PURE__*/React.createElement("option", {
+    value: "receber_entrega"
+  }, "\uD83D\uDE9A Receber no Ato da Entrega"), /*#__PURE__*/React.createElement("option", {
     value: "pago"
   }, "\u2705 Pago"), /*#__PURE__*/React.createElement("option", {
     value: "troco"
@@ -7748,6 +7750,10 @@ function EntregasPage(_ref24) {
       }
     }, "\uD83D\uDCAC ", ped.obs), (() => {
       const PG = {
+        receber_entrega: {
+          l: "🚚 Receber no Ato da Entrega",
+          c: "#8b5cf6"
+        },
         pago: {
           l: "✅ Pago",
           c: "#27ae60"
