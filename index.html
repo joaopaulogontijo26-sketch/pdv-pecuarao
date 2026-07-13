@@ -7454,6 +7454,33 @@ function EntregasPage(_ref24) {
     persistE(pedidos.filter(p => p.id !== id));
     notify("Pedido removido.", "warn");
   };
+  const lancarNoHistorico = ped => {
+    if (ped.vendaId) {
+      notify("Este pedido já está vinculado a uma venda no histórico.", "warn");
+      return;
+    }
+    if (!ped.itens || ped.itens.length === 0) {
+      notify("Pedido sem itens — não dá pra lançar como venda.", "error");
+      return;
+    }
+    const saleId = uid();
+    const newSale = {
+      id: saleId,
+      customer: ped.cliente,
+      items: ped.itens,
+      total: ped.total || 0,
+      payment: "Dinheiro",
+      date: ped.criadoData || todayStr(),
+      time: ped.criadoHora || nowTime(),
+      createdAt: ped.criadoEm || Date.now()
+    };
+    persistS([newSale, ...sales]);
+    persistE(pedidos.map(p => p.id === ped.id ? {
+      ...p,
+      vendaId: saleId
+    } : p));
+    notify("Pedido lançado no histórico ✓ (forma de pagamento: Dinheiro — edite no Histórico se precisar mudar)");
+  };
   const imprimirBrowser = ped => {
     const st = ST[ped.status];
     const itemRows = (ped.itens || []).map(i => "<tr><td>" + i.name + "</td><td style='text-align:center'>" + i.qty + "x</td><td style='text-align:right;font-weight:600'>" + fmt(i.price * i.qty) + "</td></tr>").join("");
@@ -7834,7 +7861,18 @@ function EntregasPage(_ref24) {
         padding: "7px",
         fontSize: 12
       }
-    }, "\uD83D\uDCAC Obs"), /*#__PURE__*/React.createElement("button", {
+    }, "\uD83D\uDCAC Obs"), !ped.vendaId && /*#__PURE__*/React.createElement("button", {
+      onClick: () => lancarNoHistorico(ped),
+      style: {
+        ...S.btn("ghost"),
+        flex: 1,
+        justifyContent: "center",
+        padding: "7px",
+        fontSize: 12,
+        color: "#4ade80",
+        borderColor: "#4ade8040"
+      }
+    }, "\uD83D\uDCDD Lan\xE7ar no Hist\xF3rico"), /*#__PURE__*/React.createElement("button", {
       onClick: () => imprimirBrowser(ped),
       style: {
         ...S.btn("ghost"),
