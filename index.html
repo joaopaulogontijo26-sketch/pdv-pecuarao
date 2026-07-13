@@ -130,6 +130,22 @@ const save = (k, v) => {
   } catch {}
 };
 
+// Combina dados do servidor com dados locais sem apagar registros que ainda
+// não foram sincronizados (ex: venda feita offline / sync falhou por rede
+// instável). O servidor "ganha" quando o mesmo id existe nos dois lados,
+// mas um registro que só existe localmente NUNCA é descartado aqui — ele
+// fica visível até a próxima sincronização conseguir enviá-lo pra frente.
+const mergeById = (local, remote) => {
+  const map = new Map();
+  (Array.isArray(remote) ? remote : []).forEach(r => {
+    if (r && r.id != null) map.set(r.id, r);
+  });
+  (Array.isArray(local) ? local : []).forEach(l => {
+    if (l && l.id != null && !map.has(l.id)) map.set(l.id, l);
+  });
+  return Array.from(map.values());
+};
+
 // ── BANCO DE DADOS: SERVIDOR É A FONTE ÚNICA DE VERDADE ───────────────────────
 // ── SUPABASE DIRETO ──────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://jyrugkklsacswgysjser.supabase.co";
@@ -504,6 +520,37 @@ async function syncDeleteOne(col, id) {
     console.warn('[PDV] syncDeleteOne falhou:', col, id, e.message);
     return false;
   }
+}
+// Decrementa estoque de forma ATÔMICA no servidor (função SQL decrement_stock,
+// precisa ser criada uma vez no Supabase — ver instruções). Isso evita que duas
+// vendas do mesmo produto em aparelhos diferentes, quase ao mesmo tempo, "pisem"
+// uma na outra e deixem o estoque errado. Retorna { [produtoId]: estoqueFinal }
+// pra corrigir o estado local com o valor real do servidor.
+async function syncDecrementStock(items) {
+  const key = _SB_KEY();
+  if (!key || !Array.isArray(items) || items.length === 0) return {};
+  const results = {};
+  for (const it of items) {
+    if (!it || !it.id) continue;
+    try {
+      const r = await fetch(SUPABASE_URL + "/rest/v1/rpc/decrement_stock", {
+        method: "POST",
+        headers: _SB_H(),
+        body: JSON.stringify({
+          p_id: it.id,
+          qty: it.qty
+        })
+      });
+      if (r.ok) {
+        const val = await r.json();
+        const novoEstoque = typeof val === "number" ? val : Array.isArray(val) ? val[0] : null;
+        if (novoEstoque != null) results[it.id] = novoEstoque;
+      }
+    } catch (e) {
+      console.warn("[PDV] syncDecrementStock falhou:", it.id, e.message);
+    }
+  }
+  return results;
 }
 async function syncLoad() {
   const key = _SB_KEY();
@@ -4770,13 +4817,27 @@ function AtacadoPage(_ref19) {
       obs
     };
     persistS([newSale, ...sales]);
-    persistP(products.map(p => {
+    const itensAtacado = items.map(i => ({
+      id: i.id,
+      qty: i.qty
+    }));
+    const novosProdutosAtacado = products.map(p => {
       const ci = items.find(i => i.id === p.id);
       return ci ? {
         ...p,
         stock: Math.max(0, p.stock - ci.qty)
       } : p;
-    }));
+    });
+    persistP(novosProdutosAtacado);
+    // Corrige com o valor real do servidor (decremento atômico evita erro
+    // de estoque quando 2 aparelhos vendem o mesmo produto ao mesmo tempo).
+    syncDecrementStock(itensAtacado).then(novos => {
+      if (Object.keys(novos).length === 0) return;
+      persistP(novosProdutosAtacado.map(p => novos[p.id] != null ? {
+        ...p,
+        stock: novos[p.id]
+      } : p));
+    });
     if (!isAvulso) persistC(customers.map(c => c.name === cliente ? {
       ...c,
       purchases: c.purchases + 1,
@@ -9093,11 +9154,21 @@ function PDVApp() {
     _syncRef.current = true;
     syncLoad().then(async data => {
       if (data) {
-        if (Array.isArray(data.products)) setProducts(data.products);
-        if (Array.isArray(data.customers)) setCustomers(data.customers);
-        if (Array.isArray(data.sales)) setSales(data.sales);
-        if (Array.isArray(data.entregas)) setPedidos(data.entregas);
-        if (Array.isArray(data.fornecedores)) setFornecedores(data.fornecedores);
+        if (Array.isArray(data.products)) setProducts(prev => mergeById(prev, data.products));
+        if (Array.isArray(data.customers)) setCustomers(prev => mergeById(prev, data.customers));
+        if (Array.isArray(data.sales)) setSales(prev => {
+          const merged = mergeById(prev, data.sales);
+          const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.sales || []).some(r => r.id === l.id));
+          if (somenteLocal.length > 0) syncSave("sales", merged);
+          return merged;
+        });
+        if (Array.isArray(data.entregas)) setPedidos(prev => {
+          const merged = mergeById(prev, data.entregas);
+          const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.entregas || []).some(r => r.id === l.id));
+          if (somenteLocal.length > 0) syncSave("entregas", merged);
+          return merged;
+        });
+        if (Array.isArray(data.fornecedores)) setFornecedores(prev => mergeById(prev, data.fornecedores));
         if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
         setServerOk(true);
       } else {
@@ -9117,11 +9188,21 @@ function PDVApp() {
     try {
       const data = await syncLoad();
       if (data) {
-        if (Array.isArray(data.products)) setProducts(data.products);
-        if (Array.isArray(data.customers)) setCustomers(data.customers);
-        if (Array.isArray(data.sales)) setSales(data.sales);
-        if (Array.isArray(data.entregas)) setPedidos(data.entregas);
-        if (Array.isArray(data.fornecedores)) setFornecedores(data.fornecedores);
+        if (Array.isArray(data.products)) setProducts(prev => mergeById(prev, data.products));
+        if (Array.isArray(data.customers)) setCustomers(prev => mergeById(prev, data.customers));
+        if (Array.isArray(data.sales)) setSales(prev => {
+          const merged = mergeById(prev, data.sales);
+          const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.sales || []).some(r => r.id === l.id));
+          if (somenteLocal.length > 0) syncSave("sales", merged);
+          return merged;
+        });
+        if (Array.isArray(data.entregas)) setPedidos(prev => {
+          const merged = mergeById(prev, data.entregas);
+          const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.entregas || []).some(r => r.id === l.id));
+          if (somenteLocal.length > 0) syncSave("entregas", merged);
+          return merged;
+        });
+        if (Array.isArray(data.fornecedores)) setFornecedores(prev => mergeById(prev, data.fornecedores));
         if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
         setServerOk(true);
         if (showNotify) notify('Dados atualizados! ✓');
@@ -9285,13 +9366,30 @@ function PDVApp() {
       createdAt: Date.now()
     };
     persistS([newSale, ...sales]);
-    persistP(products.map(prod => {
+    const itensCarrinho = cart.map(i => ({
+      id: i.id,
+      qty: i.qty
+    }));
+    const novosProdutos = products.map(prod => {
       const ci = cart.find(i => i.id === prod.id);
       return ci ? {
         ...prod,
         stock: Math.max(0, prod.stock - ci.qty)
       } : prod;
-    }));
+    });
+    // Atualiza local pra resposta instantânea (funciona offline também).
+    setProducts(novosProdutos);
+    save("pdv_products", novosProdutos);
+    // Decrementa de forma ATÔMICA no servidor — evita erro de estoque quando
+    // 2 aparelhos vendem o mesmo produto quase ao mesmo tempo — e corrige o
+    // valor local com o número real que veio do servidor.
+    syncDecrementStock(itensCarrinho).then(novos => {
+      if (Object.keys(novos).length === 0) return;
+      setProducts(prev => prev.map(p => novos[p.id] != null ? {
+        ...p,
+        stock: novos[p.id]
+      } : p));
+    });
     if (saleCustomer !== "Avulso") persistC(customers.map(c => c.name === saleCustomer ? {
       ...c,
       purchases: c.purchases + 1,
@@ -11568,9 +11666,42 @@ function PDVApp() {
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: S.badge(s.payment === "A Prazo" ? "#ef4444" : s.payment.includes("Pix") ? "#4A5BC4" : s.payment.includes("Cartão") ? "#a78bfa" : "#4ade80")
-  }, s.payment === "A Prazo" ? "⚠️ A Prazo" : s.payment), s.tipo === "atacado" && /*#__PURE__*/React.createElement("span", {
+  }, s.payment === "A Prazo" ? "⚠️ A Prazo" : s.payment), s.tipo === "atacado" ? /*#__PURE__*/React.createElement("span", {
     style: S.badge("#f59e0b")
-  }, "\uD83D\uDCE6 Atacado"), /*#__PURE__*/React.createElement("span", {
+  }, "\uD83D\uDCE6 Atacado") : /*#__PURE__*/React.createElement("span", {
+    style: S.badge("#6a6d80")
+  }, "\uD83C\uDFEA Varejo"), s.vendedor && /*#__PURE__*/React.createElement("span", {
+    style: S.badge("#4A5BC4")
+  }, "\uD83D\uDC64 ", s.vendedor), (() => {
+    const entregaVinculada = (pedidos || []).find(p => p.vendaId === s.id);
+    if (!entregaVinculada) return null;
+    const stMap = {
+      pedido: {
+        label: "Pedido",
+        emoji: "📋",
+        color: "#94a3b8"
+      },
+      separando: {
+        label: "Separando",
+        emoji: "📦",
+        color: "#f59e0b"
+      },
+      rota: {
+        label: "Em Rota",
+        emoji: "🚚",
+        color: "#3b82f6"
+      },
+      concluido: {
+        label: "Entregue",
+        emoji: "✅",
+        color: "#22c55e"
+      }
+    };
+    const stInfo = stMap[entregaVinculada.status] || stMap.pedido;
+    return /*#__PURE__*/React.createElement("span", {
+      style: S.badge(stInfo.color)
+    }, stInfo.emoji, " ", stInfo.label, " \xB7 ", entregaVinculada.numero);
+  })(), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
       color: "#3a3d50",
