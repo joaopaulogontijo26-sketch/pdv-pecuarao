@@ -464,6 +464,45 @@ const _toRow = {
 };
 
 // Callback global para notificar o status de conexão (definido pelo App)
+// ── FILA DE ENVIO (outbox) ────────────────────────────────────────────────────
+// Se um envio falhar (sem internet, servidor fora), o registro fica guardado
+// aqui e é reenviado sozinho quando a conexão voltar. Sem isso, uma venda feita
+// offline era gravada só no aparelho e NUNCA subia pro servidor — sumia do
+// histórico dos outros aparelhos.
+const _OUTBOX_KEY = "pdv_outbox";
+const getOutbox = () => load(_OUTBOX_KEY, []);
+const addToOutbox = (col, item) => {
+  if (!item || item.id == null) return;
+  const box = getOutbox().filter(e => !(e.col === col && e.id === item.id));
+  box.push({
+    col,
+    id: item.id,
+    item,
+    ts: Date.now()
+  });
+  save(_OUTBOX_KEY, box);
+};
+const removeFromOutbox = (col, id) => {
+  save(_OUTBOX_KEY, getOutbox().filter(e => !(e.col === col && e.id === id)));
+};
+// Reenvia tudo que está pendente. Chamado ao abrir o app, ao voltar a conexão,
+// e periodicamente.
+let _flushing = false;
+const flushOutbox = async () => {
+  if (_flushing) return;
+  const box = getOutbox();
+  if (box.length === 0) return;
+  _flushing = true;
+  try {
+    for (const e of box) {
+      const ok = await syncSaveOne(e.col, e.item, true);
+      if (ok) removeFromOutbox(e.col, e.id);
+    }
+  } finally {
+    _flushing = false;
+  }
+};
+
 let _onSyncStatus = null;
 function setSyncStatusCallback(fn) {
   _onSyncStatus = fn;
@@ -554,6 +593,7 @@ async function syncSave(col, val) {
 // todas as vendas...) a cada clique, o que consome uma quantidade enorme de
 // transferência (egress) e é o principal motivo da cota do Supabase estourar.
 async function syncSaveOne(col, item) {
+  let _fromOutbox = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
   const key = _SB_KEY();
   if (!key || !item || item.id == null) return false;
   try {
@@ -565,13 +605,17 @@ async function syncSaveOne(col, item) {
         ..._SB_H(),
         Prefer: 'resolution=merge-duplicates'
       },
-      body: JSON.stringify([transform(item)])
+      body: JSON.stringify([transform(item)]),
+      signal: _timeoutSignal(15000)
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!_fromOutbox) removeFromOutbox(col, item.id);
     if (_onSyncStatus) _onSyncStatus(true);
     return true;
   } catch (e) {
     console.warn('[PDV] syncSaveOne falhou:', col, e.message);
+    // Guarda pra reenviar depois — o dado NÃO se perde.
+    if (!_fromOutbox) addToOutbox(col, item);
     if (_onSyncStatus) _onSyncStatus(false);
     return false;
   }
@@ -9158,6 +9202,23 @@ function PDVApp() {
     setSyncStatusCallback(ok => setServerOk(ok));
   }, []);
 
+  // Reenvia o que ficou pendente assim que a internet voltar, e tenta de novo
+  // a cada 30s. É isso que faz uma venda feita offline subir sozinha depois,
+  // em vez de ficar presa só no aparelho.
+  useEffect(() => {
+    const aoVoltarOnline = () => {
+      flushOutbox().then(() => retryTombstones());
+    };
+    window.addEventListener("online", aoVoltarOnline);
+    const timer = setInterval(() => {
+      if (navigator.onLine && getOutbox().length > 0) aoVoltarOnline();
+    }, 30000);
+    return () => {
+      window.removeEventListener("online", aoVoltarOnline);
+      clearInterval(timer);
+    };
+  }, []);
+
   // Envia pro servidor SÓ os registros que realmente mudaram, comparando o
   // array novo com o anterior. Antes, cada clique reenviava o array inteiro
   // (os 167 produtos, todas as vendas...), o que estourava a cota de
@@ -9370,6 +9431,7 @@ function PDVApp() {
         if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
         setServerOk(true);
         retryTombstones();
+        flushOutbox();
       } else {
         setServerOk(false);
       }
@@ -9407,6 +9469,7 @@ function PDVApp() {
         if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
         setServerOk(true);
         retryTombstones();
+        flushOutbox();
         if (showNotify) notify('Dados atualizados! ✓');
         return true;
       }
@@ -10366,6 +10429,8 @@ function PDVApp() {
     onClick: async () => {
       if (serverOk === false) {
         notify("Reconectando...");
+        await flushOutbox();
+        await retryTombstones();
         await reloadFromSupabase(false);
       }
     },
