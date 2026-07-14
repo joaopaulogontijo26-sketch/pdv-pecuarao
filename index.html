@@ -138,14 +138,39 @@ const save = (k, v) => {
 // "excludeIds" são registros que o usuário excluiu por aqui: mesmo que o
 // servidor ainda responda com eles (ex: o DELETE falhou por instabilidade
 // de rede, ou ainda não terminou), eles não voltam a aparecer na tela.
+// Chave e leitura da fila de envio. Definidas aqui em cima porque o mergeById
+// (logo abaixo) precisa consultar a fila pra saber se um registro local ainda
+// está pendente de envio ou se foi apagado em outro aparelho.
+const _OUTBOX_KEY = "pdv_outbox";
+const getOutbox = () => load(_OUTBOX_KEY, []);
+
+// Combina dados do servidor com dados locais.
+//
+// A regra chave está em como tratar um item que existe SÓ no aparelho:
+//   • Se ele está na fila de envio (outbox), é uma venda/pedido feito offline
+//     que ainda não subiu → precisa ser mantido e reenviado.
+//   • Se ele NÃO está na fila, é porque já subiu pro servidor um dia. Se agora
+//     sumiu de lá, é porque foi APAGADO de propósito em outro aparelho →
+//     precisa sumir daqui também, e nunca ser reenviado.
+//
+// Sem essa distinção, apagar uma venda no PC fazia o celular "ressuscitar" ela
+// no próximo carregamento, achando que era um registro offline a sincronizar.
 const mergeById = function (local, remote) {
   let excludeIds = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
+  let col = arguments.length > 3 ? arguments[3] : undefined;
   const map = new Map();
+  const naFila = new Set(col ? getOutbox().filter(e => e.col === col).map(e => e.id) : []);
   (Array.isArray(remote) ? remote : []).forEach(r => {
     if (r && r.id != null && !(excludeIds && excludeIds.has(r.id))) map.set(r.id, r);
   });
   (Array.isArray(local) ? local : []).forEach(l => {
-    if (l && l.id != null && !map.has(l.id) && !(excludeIds && excludeIds.has(l.id))) map.set(l.id, l);
+    if (!l || l.id == null) return;
+    if (excludeIds && excludeIds.has(l.id)) return;
+    if (map.has(l.id)) return;
+    // Só sobrevive se ainda estiver pendente de envio. Caso contrário, foi
+    // apagado em outro aparelho — deixa morrer.
+    if (col && !naFila.has(l.id)) return;
+    map.set(l.id, l);
   });
   return Array.from(map.values());
 };
@@ -469,8 +494,6 @@ const _toRow = {
 // aqui e é reenviado sozinho quando a conexão voltar. Sem isso, uma venda feita
 // offline era gravada só no aparelho e NUNCA subia pro servidor — sumia do
 // histórico dos outros aparelhos.
-const _OUTBOX_KEY = "pdv_outbox";
-const getOutbox = () => load(_OUTBOX_KEY, []);
 const addToOutbox = (col, item) => {
   if (!item || item.id == null) return;
   const box = getOutbox().filter(e => !(e.col === col && e.id === item.id));
@@ -501,6 +524,31 @@ const flushOutbox = async () => {
   } finally {
     _flushing = false;
   }
+};
+
+// Junta os dados do servidor com o estado local de forma CORRETA:
+//   • O servidor é a fonte da verdade.
+//   • Um registro que existe só aqui e NÃO está na fila de envio (outbox)
+//     significa que foi APAGADO em outro aparelho → some daqui também.
+//   • Um registro que existe só aqui e ESTÁ na fila de envio significa que foi
+//     criado offline e ainda não subiu → é mantido e reenviado.
+// Antes, qualquer registro ausente do servidor era reenviado às cegas — por
+// isso uma venda apagada no PC "ressuscitava" quando o celular abria.
+const mergeComServidor = (col, local, doServidor) => {
+  const excluidos = new Set((getTombstones()[col] || []));
+  const naFila = new Set(getOutbox().filter(e => e.col === col).map(e => e.id));
+  const mapa = new Map();
+  (doServidor || []).forEach(r => {
+    if (r && r.id != null && !excluidos.has(r.id)) mapa.set(r.id, r);
+  });
+  (local || []).forEach(l => {
+    if (!l || l.id == null) return;
+    if (excluidos.has(l.id)) return; // apagado aqui, aguardando confirmação
+    if (mapa.has(l.id)) return; // já veio do servidor
+    if (naFila.has(l.id)) mapa.set(l.id, l); // criado offline, ainda vai subir
+    // senão: não está no servidor nem na fila → foi apagado em outro aparelho.
+  });
+  return Array.from(mapa.values());
 };
 
 let _onSyncStatus = null;
@@ -578,10 +626,23 @@ async function syncSave(col, val) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
       }
     }
+    // Subiu com sucesso → tira da fila de pendentes. Se ficasse na fila, o app
+    // continuaria achando que esses registros nunca subiram, e os
+    // "ressuscitaria" caso fossem apagados em outro aparelho.
+    (Array.isArray(val) ? val : []).forEach(item => {
+      if (item && item.id != null) removeFromOutbox(col, item.id);
+    });
     if (_onSyncStatus) _onSyncStatus(true);
     return true;
   } catch (e) {
     console.warn('[PDV] syncSave falhou:', col, e.message);
+    // Guarda cada registro na fila pra reenviar depois. Sem isso, um lote que
+    // falha (offline, servidor fora) era simplesmente descartado.
+    if (_toRow[col] && Array.isArray(val)) {
+      val.forEach(item => {
+        if (item && item.id != null) addToOutbox(col, item);
+      });
+    }
     if (_onSyncStatus) _onSyncStatus(false);
     return false;
   }
@@ -9413,21 +9474,19 @@ function PDVApp() {
       if (data) {
         const tomb = getTombstones();
         const tset = col => new Set(tomb[col] || []);
-        if (Array.isArray(data.products)) setProducts(prev => mergeById(prev, data.products, tset("products")));
-        if (Array.isArray(data.customers)) setCustomers(prev => mergeById(prev, data.customers, tset("customers")));
+        if (Array.isArray(data.products)) setProducts(prev => { const m = mergeComServidor("products", prev, data.products); save("pdv_products", m); return m; });
+        if (Array.isArray(data.customers)) setCustomers(prev => { const m = mergeComServidor("customers", prev, data.customers); save("pdv_customers", m); return m; });
         if (Array.isArray(data.sales)) setSales(prev => {
-          const merged = mergeById(prev, data.sales, tset("sales"));
-          const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.sales || []).some(r => r.id === l.id));
-          if (somenteLocal.length > 0) syncSave("sales", merged);
+          const merged = mergeComServidor("sales", prev, data.sales);
+          save("pdv_sales", merged);
           return merged;
         });
         if (Array.isArray(data.entregas)) setPedidos(prev => {
-          const merged = mergeById(prev, data.entregas, tset("entregas"));
-          const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.entregas || []).some(r => r.id === l.id));
-          if (somenteLocal.length > 0) syncSave("entregas", merged);
+          const merged = mergeComServidor("entregas", prev, data.entregas);
+          save("pdv_entregas", merged);
           return merged;
         });
-        if (Array.isArray(data.fornecedores)) setFornecedores(prev => mergeById(prev, data.fornecedores, tset("fornecedores")));
+        if (Array.isArray(data.fornecedores)) setFornecedores(prev => { const m = mergeComServidor("fornecedores", prev, data.fornecedores); save("pdv_fornecedores", m); return m; });
         if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
         setServerOk(true);
         retryTombstones();
@@ -9451,21 +9510,19 @@ function PDVApp() {
       if (data) {
         const tomb = getTombstones();
         const tset = col => new Set(tomb[col] || []);
-        if (Array.isArray(data.products)) setProducts(prev => mergeById(prev, data.products, tset("products")));
-        if (Array.isArray(data.customers)) setCustomers(prev => mergeById(prev, data.customers, tset("customers")));
+        if (Array.isArray(data.products)) setProducts(prev => { const m = mergeComServidor("products", prev, data.products); save("pdv_products", m); return m; });
+        if (Array.isArray(data.customers)) setCustomers(prev => { const m = mergeComServidor("customers", prev, data.customers); save("pdv_customers", m); return m; });
         if (Array.isArray(data.sales)) setSales(prev => {
-          const merged = mergeById(prev, data.sales, tset("sales"));
-          const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.sales || []).some(r => r.id === l.id));
-          if (somenteLocal.length > 0) syncSave("sales", merged);
+          const merged = mergeComServidor("sales", prev, data.sales);
+          save("pdv_sales", merged);
           return merged;
         });
         if (Array.isArray(data.entregas)) setPedidos(prev => {
-          const merged = mergeById(prev, data.entregas, tset("entregas"));
-          const somenteLocal = (prev || []).filter(l => l && l.id != null && !(data.entregas || []).some(r => r.id === l.id));
-          if (somenteLocal.length > 0) syncSave("entregas", merged);
+          const merged = mergeComServidor("entregas", prev, data.entregas);
+          save("pdv_entregas", merged);
           return merged;
         });
-        if (Array.isArray(data.fornecedores)) setFornecedores(prev => mergeById(prev, data.fornecedores, tset("fornecedores")));
+        if (Array.isArray(data.fornecedores)) setFornecedores(prev => { const m = mergeComServidor("fornecedores", prev, data.fornecedores); save("pdv_fornecedores", m); return m; });
         if (Array.isArray(data.categorias) && data.categorias.length) setCats(data.categorias);
         setServerOk(true);
         retryTombstones();
