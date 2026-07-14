@@ -450,6 +450,16 @@ const _toRow = {
     cep: f.cep || '',
     obs: f.obs || '',
     created_at: f.createdAt || Date.now()
+  }),
+  lista_compras: i => ({
+    id: i.id,
+    name: i.name || '',
+    qty: i.qty || '',
+    fase: i.fase || 'pendente',
+    price: +(i.price || 0),
+    cost_price: +(i.costPrice || 0),
+    barcode: i.barcode || '',
+    created_at: i.createdAt || Date.now()
   })
 };
 
@@ -539,6 +549,33 @@ async function syncSave(col, val) {
 }
 // Apaga UM registro específico no Supabase (usado nos botões de excluir).
 // Diferente do syncSave antigo, isso nunca apaga nada além do id informado.
+// Envia UM registro só (upsert por id). Use isto no lugar de syncSave sempre
+// que só um item mudou — syncSave reenvia o ARRAY INTEIRO (todos os produtos,
+// todas as vendas...) a cada clique, o que consome uma quantidade enorme de
+// transferência (egress) e é o principal motivo da cota do Supabase estourar.
+async function syncSaveOne(col, item) {
+  const key = _SB_KEY();
+  if (!key || !item || item.id == null) return false;
+  try {
+    const transform = _toRow[col];
+    if (!transform) return false;
+    const r = await fetch(SUPABASE_URL + '/rest/v1/' + col + '?on_conflict=id', {
+      method: 'POST',
+      headers: {
+        ..._SB_H(),
+        Prefer: 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify([transform(item)])
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (_onSyncStatus) _onSyncStatus(true);
+    return true;
+  } catch (e) {
+    console.warn('[PDV] syncSaveOne falhou:', col, e.message);
+    if (_onSyncStatus) _onSyncStatus(false);
+    return false;
+  }
+}
 async function syncDeleteOne(col, id) {
   const key = _SB_KEY();
   if (!key || !id) return false;
@@ -603,6 +640,24 @@ async function syncLoad() {
     return data;
   } catch (e) {
     console.warn('[PDV] syncLoad falhou:', e.message);
+    return null;
+  }
+}
+// Busca UMA tabela direto no Supabase. Usado por telas cuja tabela não vem no
+// get_all_data (ex: lista_compras), pra elas também sincronizarem entre
+// aparelhos em vez de viverem só no localStorage.
+async function syncLoadTable(col) {
+  const key = _SB_KEY();
+  if (!key) return null;
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/' + col + '?select=*', {
+      headers: _SB_H(),
+      signal: _timeoutSignal(10000)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } catch (e) {
+    console.warn('[PDV] syncLoadTable falhou:', col, e.message);
     return null;
   }
 }
@@ -5395,7 +5450,25 @@ function AtacadoPage(_ref19) {
     style: {
       fontWeight: 700
     }
-  }, fmt(comissaoValor)))), /*#__PURE__*/React.createElement("button", {
+  }, fmt(comissaoValor)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.card,
+      marginTop: 14,
+      marginBottom: 0,
+      padding: "12px 14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 6,
+      fontSize: 11
+    }
+  }, "Cliente"), /*#__PURE__*/React.createElement(CustomerSearch, {
+    customers: customers,
+    value: cliente,
+    onChange: setCliente,
+    S: S
+  })), /*#__PURE__*/React.createElement("button", {
     onClick: () => setStep("finalizar"),
     style: {
       ...S.btn("primary"),
@@ -5408,7 +5481,7 @@ function AtacadoPage(_ref19) {
       background: "linear-gradient(135deg,#f59e0b,#d97706)",
       boxShadow: "0 6px 24px rgba(245,158,11,.35)"
     }
-  }, "Finalizar Pedido \u2192 ", fmt(total)));
+  }, "Continuar \u2192 ", fmt(total)));
 
   // ── STEP: FINALIZAR (entrega obrigatória) ───────────────────────────────────
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
@@ -5806,9 +5879,44 @@ function ListaComprasPage(_ref20) {
     setEtiquetaLayout = _useStateE6[1];
   const inputRef = useRef(null);
   const persist = v => {
+    // Envia só os itens que mudaram, em vez da lista inteira.
+    const antMap = new Map((items || []).map(x => [x.id, x]));
+    const alterados = (v || []).filter(i => {
+      if (!i || i.id == null) return false;
+      const antes = antMap.get(i.id);
+      return !antes || JSON.stringify(antes) !== JSON.stringify(i);
+    });
+    if (alterados.length > 20) syncSave("lista_compras", alterados);else alterados.forEach(i => syncSaveOne("lista_compras", i));
     setItems(v);
-    syncSave("lista_compras", v);
+    save("pdv_lista_compras", v);
   };
+  // Busca a lista no servidor ao abrir a tela — a tabela lista_compras não vem
+  // no get_all_data, então sem isso ela só existiria no aparelho e itens
+  // adicionados no celular nunca apareceriam no PC.
+  const _listaSyncRef = useRef(false);
+  useEffect(() => {
+    if (_listaSyncRef.current) return;
+    _listaSyncRef.current = true;
+    syncLoadTable("lista_compras").then(rows => {
+      if (!Array.isArray(rows)) return;
+      const doServidor = rows.map(r => ({
+        id: r.id,
+        name: r.name || "",
+        qty: r.qty || "",
+        fase: r.fase || "pendente",
+        price: +(r.price || 0),
+        costPrice: +(r.cost_price || 0),
+        barcode: r.barcode || "",
+        createdAt: r.created_at || Date.now()
+      }));
+      const tomb = new Set((getTombstones()["lista_compras"] || []));
+      setItems(prev => {
+        const merged = mergeById(prev, doServidor, tomb);
+        save("pdv_lista_compras", merged);
+        return merged;
+      });
+    });
+  }, []);
   const addItem = () => {
     var _inputRef$current2;
     const name = input.trim();
@@ -6255,7 +6363,6 @@ function ListaComprasPage(_ref20) {
       key: item.id,
       style: {
         ...S.card,
-        borderLeft: "4px solid " + fase.color,
         border: "1px solid " + fase.border,
         borderLeft: "4px solid " + fase.color,
         padding: "12px 14px",
@@ -7363,6 +7470,7 @@ function EntregasPage(_ref24) {
     notify = _ref24.notify,
     pedidosProp = _ref24.pedidos,
     persistEProp = _ref24.persistE,
+    persistSProp = _ref24.persistS,
     onReload = _ref24.onReload;
   const _useState141 = useState(() => pedidosProp || load("pdv_entregas", [])),
     _useState142 = _slicedToArray(_useState141, 2),
@@ -7504,6 +7612,10 @@ function EntregasPage(_ref24) {
       notify("Pedido sem itens — não dá pra lançar como venda.", "error");
       return;
     }
+    if (!persistSProp) {
+      notify("Erro interno: persistS não disponível.", "error");
+      return;
+    }
     const saleId = uid();
     const newSale = {
       id: saleId,
@@ -7515,12 +7627,12 @@ function EntregasPage(_ref24) {
       time: ped.criadoHora || nowTime(),
       createdAt: ped.criadoEm || Date.now()
     };
-    persistS([newSale, ...sales]);
+    persistSProp([newSale, ...(sales || [])]);
     persistE(pedidos.map(p => p.id === ped.id ? {
       ...p,
       vendaId: saleId
     } : p));
-    notify("Pedido lançado no histórico ✓ (forma de pagamento: Dinheiro — edite no Histórico se precisar mudar)");
+    notify("Lançado no histórico ✓ — edite a forma de pagamento se precisar.");
   };
   const imprimirBrowser = ped => {
     const st = ST[ped.status];
@@ -7632,7 +7744,6 @@ function EntregasPage(_ref24) {
       key: ped.id,
       style: {
         ...S.card,
-        borderLeft: "4px solid " + st.color,
         border: "1px solid " + st.border,
         borderLeft: "4px solid " + st.color
       }
@@ -7790,7 +7901,7 @@ function EntregasPage(_ref24) {
     }, "\uD83D\uDCAC ", ped.obs), (() => {
       const PG = {
         receber_entrega: {
-          l: "🚚 Receber no Ato da Entrega",
+          l: "🚚 Receber no Ato",
           c: "#8b5cf6"
         },
         pago: {
@@ -7833,22 +7944,26 @@ function EntregasPage(_ref24) {
         let _ref26 = _slicedToArray(_ref25, 2),
           k = _ref26[0],
           v = _ref26[1];
+        const isSelected = (ped.pagamento || "pago") === k;
         return /*#__PURE__*/React.createElement("button", {
           key: k,
-          onClick: () => persistE(pedidos.map(p => p.id === ped.id ? {
-            ...p,
-            pagamento: k
-          } : p)),
+          onClick: () => {
+            if (!isSelected) persistE(pedidos.map(p => p.id === ped.id ? {
+              ...p,
+              pagamento: k
+            } : p));
+          },
           style: {
             padding: "5px 10px",
             borderRadius: 20,
-            border: "1px solid " + (ped.pagamento === k ? v.c + "80" : v.c + "25"),
-            background: ped.pagamento === k ? v.c + "18" : "transparent",
-            color: ped.pagamento === k ? v.c : "#6a6d80",
-            cursor: "pointer",
+            border: "1px solid " + (isSelected ? v.c + "80" : v.c + "20"),
+            background: isSelected ? v.c + "22" : "transparent",
+            color: isSelected ? v.c : v.c + "55",
+            cursor: isSelected ? "default" : "pointer",
             fontFamily: "inherit",
             fontSize: 11,
-            fontWeight: ped.pagamento === k ? 700 : 500
+            fontWeight: isSelected ? 700 : 400,
+            opacity: isSelected ? 1 : 0.55
           }
         }, v.l);
       })));
@@ -8198,8 +8313,10 @@ const loadFornecedores = () => load("pdv_fornecedores", []);
 const saveFornecedores = v => save("pdv_fornecedores", v);
 function FornecedoresPage(_ref28) {
   let S = _ref28.S,
-    notify = _ref28.notify;
-  const _useState153 = useState(() => loadFornecedores()),
+    notify = _ref28.notify,
+    listaProp = _ref28.fornecedores,
+    persistFornProp = _ref28.persistForn;
+  const _useState153 = useState(() => listaProp || loadFornecedores()),
     _useState154 = _slicedToArray(_useState153, 2),
     lista = _useState154[0],
     setLista = _useState154[1];
@@ -8236,10 +8353,16 @@ function FornecedoresPage(_ref28) {
     ...f,
     [k]: v
   }));
+  // Mantém a lista local em dia com o que o App baixou do servidor.
+  useEffect(() => {
+    if (listaProp) setLista(listaProp);
+  }, [listaProp]);
   const persist = v => {
     setLista(v);
-    saveFornecedores(v);
-    syncSave("fornecedores", v);
+    if (persistFornProp) persistFornProp(v);else {
+      saveFornecedores(v);
+      syncSave("fornecedores", v);
+    }
   };
   const openNew = () => {
     setEditItem(null);
@@ -8683,50 +8806,7 @@ function FornecedoresPage(_ref28) {
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "check",
     size: 14
-  }), " Salvar"))), photoModal && /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "fixed",
-      inset: 0,
-      background: "rgba(0,0,0,.92)",
-      zIndex: 9999,
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 20
-    },
-    onClick: () => setPhotoModal(null)
-  }, /*#__PURE__*/React.createElement("img", {
-    src: photoModal.photo,
-    style: {
-      maxWidth: "100%",
-      maxHeight: "70vh",
-      objectFit: "contain",
-      borderRadius: 14
-    },
-    alt: ""
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 16,
-      color: "var(--text-primary)",
-      fontSize: 16,
-      fontWeight: 700,
-      textAlign: "center"
-    }
-  }, photoModal.name), /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: "#f59e0b",
-      fontSize: 20,
-      fontWeight: 800,
-      marginTop: 4
-    }
-  }, fmt(photoModal.priceAtacado || photoModal.price)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--text-secondary)",
-      marginTop: 8
-    }
-  }, "Toque para fechar")));
+  }), " Salvar"))));
 }
 
 // ── CATEGORY SHEET ─────────────────────────────────────────────────────────────
@@ -9070,10 +9150,6 @@ function PDVApp() {
     _useState188 = _slicedToArray(_useState187, 2),
     appReady = _useState188[0],
     setAppReady = _useState188[1];
-  // Todos os hooks acima — return condicional só depois
-  if (!keyReady) return /*#__PURE__*/React.createElement(KeySetupScreen, {
-    onDone: () => setKeyReady(true)
-  });
   const _useState189 = useState(null),
     _useState190 = _slicedToArray(_useState189, 2),
     serverOk = _useState190[0],
@@ -9081,26 +9157,59 @@ function PDVApp() {
   useEffect(() => {
     setSyncStatusCallback(ok => setServerOk(ok));
   }, []);
+
+  // Envia pro servidor SÓ os registros que realmente mudaram, comparando o
+  // array novo com o anterior. Antes, cada clique reenviava o array inteiro
+  // (os 167 produtos, todas as vendas...), o que estourava a cota de
+  // transferência do Supabase. Agora, salvar 1 produto envia 1 produto.
+  const syncDiff = (col, anterior, novo) => {
+    const antMap = new Map((anterior || []).map(x => [x.id, x]));
+    const alterados = (novo || []).filter(item => {
+      if (!item || item.id == null) return false;
+      const antes = antMap.get(item.id);
+      // Novo registro, ou registro cujo conteúdo mudou.
+      return !antes || JSON.stringify(antes) !== JSON.stringify(item);
+    });
+    if (alterados.length === 0) return;
+    // Se muita coisa mudou de uma vez (importação, migração de fotos), vale
+    // mais mandar em lote do que um por um.
+    if (alterados.length > 20) {
+      syncSave(col, alterados);
+      return;
+    }
+    alterados.forEach(item => syncSaveOne(col, item));
+  };
   const persistP = v => {
+    syncDiff("products", products, v);
     setProducts(v);
-    syncSave("products", v);
+    save("pdv_products", v);
   };
   const persistC = v => {
+    syncDiff("customers", customers, v);
     setCustomers(v);
-    syncSave("customers", v);
+    save("pdv_customers", v);
   };
   const persistS = v => {
+    syncDiff("sales", sales, v);
     setSales(v);
-    syncSave("sales", v);
+    save("pdv_sales", v);
   };
   const persistE = v => {
+    syncDiff("entregas", pedidos, v);
     setPedidos(v);
-    syncSave("entregas", v);
+    save("pdv_entregas", v);
   };
   const persistForn = v => {
+    syncDiff("fornecedores", fornecedores, v);
     setFornecedores(v);
-    syncSave("fornecedores", v);
+    save("pdv_fornecedores", v);
   };
+  // Lista de usuários (vendedores) — usada no sync inicial e no seletor de
+  // vendedor/comissão ao editar uma venda no Histórico.
+  const _useStateUsers = useState(() => loadUsers()),
+    _useStateUsers2 = _slicedToArray(_useStateUsers, 2),
+    users = _useStateUsers2[0],
+    setUsers = _useStateUsers2[1];
   const _useState191 = useState([]),
     _useState192 = _slicedToArray(_useState191, 2),
     cart = _useState192[0],
@@ -9235,8 +9344,9 @@ function PDVApp() {
 
   // ── SYNC: carrega do servidor e polling 8s ───────────────────────────────
   const _syncRef = useRef(false);
+
   // Carrega dados do Supabase uma vez ao iniciar (sem polling)
-  if (!_syncRef.current) {
+  if (!_syncRef.current && keyReady) {
     _syncRef.current = true;
     syncLoad().then(async data => {
       if (data) {
@@ -9780,7 +9890,7 @@ function PDVApp() {
       notify("Erro ao gerar catálogo.", "error");
     }
   };
-  const categories = useMemo(() => ["Todos", ...Array.from(new Set(products.map(p => p.category)))], products);
+  const categories = useMemo(() => ["Todos", ...Array.from(new Set(products.map(p => p.category)))], [products]);
   const vendidoPorNome = useMemo(() => {
     const map = {};
     (sales || []).forEach(s => (s.items || []).forEach(i => {
@@ -10020,6 +10130,12 @@ function PDVApp() {
       boxSizing: "border-box"
     }
   };
+  // Returns condicionais só aqui — depois de TODOS os hooks terem rodado.
+  // Se ficarem no meio da lista de hooks, o React vê quantidades diferentes
+  // de hooks entre uma renderização e outra e a aplicação quebra.
+  if (!keyReady) return /*#__PURE__*/React.createElement(KeySetupScreen, {
+    onDone: () => setKeyReady(true)
+  });
   if (!currentUser) return /*#__PURE__*/React.createElement(LoginScreen, {
     S: S,
     onLogin: u => {
@@ -11227,6 +11343,7 @@ function PDVApp() {
     notify: notify,
     pedidos: pedidos,
     persistE: persistE,
+    persistS: persistS,
     onReload: reloadFromSupabase
   }), page === "usuarios" && /*#__PURE__*/React.createElement(UsersPage, {
     S: S,
@@ -11236,7 +11353,9 @@ function PDVApp() {
     persistS: persistS
   }), page === "fornecedores" && /*#__PURE__*/React.createElement(FornecedoresPage, {
     S: S,
-    notify: notify
+    notify: notify,
+    fornecedores: fornecedores,
+    persistForn: persistForn
   }), page === "lista" && /*#__PURE__*/React.createElement(ListaComprasPage, {
     S: S,
     notify: notify,
