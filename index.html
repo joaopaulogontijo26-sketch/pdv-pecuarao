@@ -4843,7 +4843,8 @@ function AtacadoPage(_ref19) {
     pedidos = _ref19.pedidos,
     sales = _ref19.sales,
     notify = _ref19.notify,
-    currentUser = _ref19.currentUser;
+    currentUser = _ref19.currentUser,
+    onGerarCatalogo = _ref19.onGerarCatalogo;
   const _useState79 = useState([]),
     _useState80 = _slicedToArray(_useState79, 2),
     items = _useState80[0],
@@ -5171,7 +5172,18 @@ function AtacadoPage(_ref19) {
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "sliders",
     size: 17
-  }))), showFiltersAtacado && /*#__PURE__*/React.createElement("div", {
+  })), onGerarCatalogo && /*#__PURE__*/React.createElement("button", {
+    onClick: onGerarCatalogo,
+    title: "Gerar catálogo PDF (atacado)",
+    style: {
+      ...S.btn("ghost"),
+      padding: "10px 12px",
+      flexShrink: 0,
+      borderRadius: 10,
+      color: "#f59e0b",
+      borderColor: "#f59e0b40"
+    }
+  }, "\uD83D\uDCC4")), showFiltersAtacado && /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.card,
       marginBottom: 10,
@@ -9718,11 +9730,6 @@ function PDVApp() {
     _useState220 = _slicedToArray(_useState219, 2),
     showFilters = _useState220[0],
     setShowFilters = _useState220[1];
-  // Mostrar preço de atacado nos cards do estoque
-  const _useStateMostraAtac = useState(false),
-    _useStateMostraAtacB = _slicedToArray(_useStateMostraAtac, 2),
-    mostrarPrecoAtacado = _useStateMostraAtacB[0],
-    setMostrarPrecoAtacado = _useStateMostraAtacB[1];
   const _useState221 = useState("name"),
     _useState222 = _slicedToArray(_useState221, 2),
     sortBy = _useState222[0],
@@ -11516,42 +11523,6 @@ function PDVApp() {
   }, "Habilitado p/ Atacado"), /*#__PURE__*/React.createElement("option", {
     value: "varejo"
   }, "Só Varejo"))), /*#__PURE__*/React.createElement("div", {
-    onClick: () => setMostrarPrecoAtacado(v => !v),
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 10,
-      cursor: "pointer",
-      padding: "6px 2px"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 40,
-      height: 22,
-      borderRadius: 11,
-      background: mostrarPrecoAtacado ? "#f59e0b" : "var(--bg-elevated)",
-      position: "relative",
-      transition: "background .2s",
-      flexShrink: 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 18,
-      height: 18,
-      borderRadius: "50%",
-      background: "#fff",
-      position: "absolute",
-      top: 2,
-      left: mostrarPrecoAtacado ? 20 : 2,
-      transition: "left .2s"
-    }
-  })), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 13,
-      color: "var(--text-primary)"
-    }
-  }, "Mostrar pre\xE7o de atacado nos produtos")), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 8
     }
@@ -11886,7 +11857,8 @@ function PDVApp() {
     pedidos: pedidos,
     sales: sales,
     notify: notify,
-    currentUser: currentUser
+    currentUser: currentUser,
+    onGerarCatalogo: exportCatalogoAtacadoPDF
   })), page === "entregas" && /*#__PURE__*/React.createElement(EntregasPage, {
     S: S,
     sales: sales,
@@ -12151,14 +12123,7 @@ function PDVApp() {
       color: "#E8682A",
       marginBottom: 3
     }
-  }, fmt(prod.price)), mostrarPrecoAtacado && prod.atacadoHabilitado && prod.priceAtacado && +prod.priceAtacado > 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      fontWeight: 700,
-      color: "#f59e0b",
-      marginBottom: 3
-    }
-  }, "\uD83D\uDCE6 ", fmt(prod.priceAtacado)), /*#__PURE__*/React.createElement("span", {
+  }, fmt(prod.price)), /*#__PURE__*/React.createElement("span", {
     style: S.badge(prod.stock === 0 ? "#ff3b3b" : prod.stock < (prod.minStock || 10) ? "#F07030" : "#4ade80")
   }, prod.stock === 0 ? "Esgotado" : prod.stock + " " + (prod.stock < (prod.minStock || 10) ? "⚠️" : "ok"))), /*#__PURE__*/React.createElement("button", {
     onClick: e => {
