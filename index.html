@@ -7595,6 +7595,10 @@ function EntregasPage(_ref24) {
     _useState144 = _slicedToArray(_useState143, 2),
     tab = _useState144[0],
     setTab = _useState144[1];
+  const _useStateEntBusca = useState(""),
+    _useStateEntBuscaB = _slicedToArray(_useStateEntBusca, 2),
+    entBusca = _useStateEntBuscaB[0],
+    setEntBusca = _useStateEntBuscaB[1];
   const _useState145 = useState(false),
     _useState146 = _slicedToArray(_useState145, 2),
     newPedido = _useState146[0],
@@ -7649,7 +7653,11 @@ function EntregasPage(_ref24) {
   }];
   const ST = Object.fromEntries(STATUS.map(s => [s.id, s]));
   const counts = Object.fromEntries(STATUS.map(s => [s.id, pedidos.filter(p => p.status === s.id).length]));
-  const filtered = pedidos.filter(p => p.status === tab);
+  const filtered = pedidos.filter(p => p.status === tab).filter(p => {
+    if (!entBusca.trim()) return true;
+    const q = entBusca.toLowerCase();
+    return (p.cliente || "").toLowerCase().includes(q) || (p.numero || "").toLowerCase().includes(q) || (p.endereco || "").toLowerCase().includes(q);
+  });
   const criarPedido = form => {
     const vendaSel = sales.find(s => s.id === form.vendaId);
     const vendaSelecionadaEntrega = sales.find(s => s.id === form.vendaId);
@@ -7833,10 +7841,18 @@ function EntregasPage(_ref24) {
       padding: "11px 14px",
       fontSize: 13
     }
-  }, "\uD83D\uDD04")), filtered.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+  }, "\uD83D\uDD04")), /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...S.input,
+      marginBottom: 14
+    },
+    placeholder: "🔍 Buscar por cliente, nº do pedido ou endereço...",
+    value: entBusca,
+    onChange: e => setEntBusca(e.target.value)
+  }), filtered.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
     icon: ST[tab].emoji,
-    title: "Nenhum pedido " + ST[tab].label.toLowerCase(),
-    desc: tab === "pedido" ? "Crie um novo pedido acima." : "Mova pedidos para esta fase."
+    title: entBusca ? "Nada encontrado" : "Nenhum pedido " + ST[tab].label.toLowerCase(),
+    desc: entBusca ? "Tente outro termo de busca." : tab === "pedido" ? "Crie um novo pedido acima." : "Mova pedidos para esta fase."
   }) : /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -9189,6 +9205,311 @@ function useScreenSize() {
   }, []);
   return size;
 }
+function RelatoriosPage(_refRel) {
+  let S = _refRel.S,
+    sales = _refRel.sales,
+    customers = _refRel.customers,
+    pedidos = _refRel.pedidos,
+    fornecedores = _refRel.fornecedores,
+    notify = _refRel.notify;
+  const _rState = useState("vendas"),
+    _rStateB = _slicedToArray(_rState, 2),
+    tipo = _rStateB[0],
+    setTipo = _rStateB[1];
+  const _rPer = useState("30dias"),
+    _rPerB = _slicedToArray(_rPer, 2),
+    periodo = _rPerB[0],
+    setPeriodo = _rPerB[1];
+
+  // Filtra vendas pelo período escolhido
+  const noPeriodo = lista => {
+    if (periodo === "sempre") return lista;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const diaMs = 86400000;
+    const limite = periodo === "hoje" ? 0 : periodo === "7dias" ? 7 : 30;
+    return lista.filter(s => {
+      if (!s.date) return false;
+      const dv = new Date(s.date + "T12:00");
+      dv.setHours(0, 0, 0, 0);
+      const diff = (hoje - dv) / diaMs;
+      return diff >= 0 && diff <= limite;
+    });
+  };
+  const vendasPer = noPeriodo(sales || []);
+
+  // ── Dados de cada relatório ──
+  const relVendas = (() => {
+    const total = vendasPer.reduce((s, v) => s + (v.total || 0), 0);
+    const qtd = vendasPer.length;
+    const atacado = vendasPer.filter(s => s.tipo === "atacado");
+    const varejo = vendasPer.filter(s => s.tipo !== "atacado");
+    const ticket = qtd > 0 ? total / qtd : 0;
+    return {
+      total,
+      qtd,
+      ticket,
+      totalAtacado: atacado.reduce((s, v) => s + (v.total || 0), 0),
+      qtdAtacado: atacado.length,
+      totalVarejo: varejo.reduce((s, v) => s + (v.total || 0), 0),
+      qtdVarejo: varejo.length
+    };
+  })();
+
+  const relClientes = (() => {
+    const mapa = {};
+    vendasPer.forEach(s => {
+      const nome = s.customer || "Avulso";
+      if (!mapa[nome]) mapa[nome] = {
+        nome,
+        total: 0,
+        qtd: 0
+      };
+      mapa[nome].total += s.total || 0;
+      mapa[nome].qtd += 1;
+    });
+    return Object.values(mapa).sort((a, b) => b.total - a.total);
+  })();
+
+  const relPagamento = (() => {
+    const mapa = {};
+    vendasPer.forEach(s => {
+      const pg = s.payment || "Outro";
+      if (!mapa[pg]) mapa[pg] = {
+        forma: pg,
+        total: 0,
+        qtd: 0
+      };
+      mapa[pg].total += s.total || 0;
+      mapa[pg].qtd += 1;
+    });
+    return Object.values(mapa).sort((a, b) => b.total - a.total);
+  })();
+
+  const relEntregas = (() => {
+    const porStatus = {
+      pedido: 0,
+      separando: 0,
+      rota: 0,
+      concluido: 0
+    };
+    (pedidos || []).forEach(p => {
+      if (porStatus[p.status] != null) porStatus[p.status] += 1;
+    });
+    const totalValor = (pedidos || []).reduce((s, p) => s + (p.total || 0), 0);
+    return {
+      porStatus,
+      totalValor,
+      qtd: (pedidos || []).length
+    };
+  })();
+
+  const relFornecedores = (() => {
+    return (fornecedores || []).map(f => ({
+      nome: f.nome || "—",
+      cnpj: f.cnpj || "",
+      telefone: f.telefone || "",
+      cidade: f.cidade || ""
+    })).sort((a, b) => a.nome.localeCompare(b.nome));
+  })();
+
+  // ── Geração de PDF (janela de impressão) ──
+  const periodoLabel = periodo === "hoje" ? "Hoje" : periodo === "7dias" ? "Últimos 7 dias" : periodo === "30dias" ? "Últimos 30 dias" : "Todo o período";
+  const gerarPDF = () => {
+    let titulo = "",
+      corpo = "";
+    const th = "style='text-align:left;padding:8px;border-bottom:2px solid #333;font-size:12px'";
+    const td = "style='padding:7px 8px;border-bottom:1px solid #ddd;font-size:12px'";
+    const tdR = "style='padding:7px 8px;border-bottom:1px solid #ddd;font-size:12px;text-align:right'";
+    if (tipo === "vendas") {
+      titulo = "Relatório de Vendas";
+      corpo = "<table style='width:100%;border-collapse:collapse'>" + "<tr><td " + td + ">Total de vendas</td><td " + tdR + "><b>" + fmt(relVendas.total) + "</b></td></tr>" + "<tr><td " + td + ">Quantidade de vendas</td><td " + tdR + ">" + relVendas.qtd + "</td></tr>" + "<tr><td " + td + ">Ticket médio</td><td " + tdR + ">" + fmt(relVendas.ticket) + "</td></tr>" + "<tr><td " + td + ">Vendas Varejo</td><td " + tdR + ">" + relVendas.qtdVarejo + " · " + fmt(relVendas.totalVarejo) + "</td></tr>" + "<tr><td " + td + ">Vendas Atacado</td><td " + tdR + ">" + relVendas.qtdAtacado + " · " + fmt(relVendas.totalAtacado) + "</td></tr>" + "</table>";
+    } else if (tipo === "clientes") {
+      titulo = "Relatório de Clientes";
+      corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Cliente</th><th " + th + " style='text-align:center'>Compras</th><th " + th + " style='text-align:right'>Total</th></tr>" + relClientes.map(c => "<tr><td " + td + ">" + c.nome + "</td><td " + td + " style='text-align:center'>" + c.qtd + "</td><td " + tdR + ">" + fmt(c.total) + "</td></tr>").join("") + "</table>";
+    } else if (tipo === "pagamento") {
+      titulo = "Relatório de Meios de Pagamento";
+      corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Forma</th><th " + th + " style='text-align:center'>Qtd</th><th " + th + " style='text-align:right'>Total</th></tr>" + relPagamento.map(p => "<tr><td " + td + ">" + p.forma + "</td><td " + td + " style='text-align:center'>" + p.qtd + "</td><td " + tdR + ">" + fmt(p.total) + "</td></tr>").join("") + "</table>";
+    } else if (tipo === "entregas") {
+      titulo = "Relatório de Entregas";
+      corpo = "<table style='width:100%;border-collapse:collapse'>" + "<tr><td " + td + ">📋 Pedido</td><td " + tdR + ">" + relEntregas.porStatus.pedido + "</td></tr>" + "<tr><td " + td + ">📦 Separando</td><td " + tdR + ">" + relEntregas.porStatus.separando + "</td></tr>" + "<tr><td " + td + ">🚚 Em Rota</td><td " + tdR + ">" + relEntregas.porStatus.rota + "</td></tr>" + "<tr><td " + td + ">✅ Concluído</td><td " + tdR + ">" + relEntregas.porStatus.concluido + "</td></tr>" + "<tr><td " + td + "><b>Total de pedidos</b></td><td " + tdR + "><b>" + relEntregas.qtd + "</b></td></tr>" + "<tr><td " + td + ">Valor total</td><td " + tdR + ">" + fmt(relEntregas.totalValor) + "</td></tr>" + "</table>";
+    } else if (tipo === "fornecedores") {
+      titulo = "Relatório de Fornecedores";
+      corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Fornecedor</th><th " + th + ">CNPJ</th><th " + th + ">Telefone</th><th " + th + ">Cidade</th></tr>" + relFornecedores.map(f => "<tr><td " + td + ">" + f.nome + "</td><td " + td + ">" + f.cnpj + "</td><td " + td + ">" + f.telefone + "</td><td " + td + ">" + f.cidade + "</td></tr>").join("") + "</table>";
+    }
+    const win = window.open("", "_blank");
+    if (!win) {
+      notify("Permita pop-ups para gerar o PDF.", "warn");
+      return;
+    }
+    win.document.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>" + titulo + "</title></head>" + "<body style='font-family:Arial,sans-serif;padding:30px;color:#222'>" + "<h2 style='color:#E8682A;margin:0 0 4px'>" + titulo + "</h2>" + "<div style='color:#666;font-size:13px;margin-bottom:18px'>Pecuarão Gontijo · " + (tipo === "entregas" || tipo === "fornecedores" ? "Situação atual" : periodoLabel) + " · " + new Date().toLocaleString("pt-BR") + "</div>" + corpo + "<script>setTimeout(function(){window.print()},400)<\/script></body></html>");
+    win.document.close();
+  };
+
+  const abas = [["vendas", "💰 Vendas"], ["clientes", "👥 Clientes"], ["entregas", "🚚 Entregas"], ["fornecedores", "🏭 Fornecedores"], ["pagamento", "💳 Pagamentos"]];
+
+  return /*#__PURE__*/React.createElement("div", null,
+  // seletor de tipo de relatório
+  /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      overflowX: "auto",
+      marginBottom: 14,
+      paddingBottom: 2,
+      scrollbarWidth: "none"
+    }
+  }, abas.map(_ab => {
+    let _abB = _slicedToArray(_ab, 2),
+      k = _abB[0],
+      lbl = _abB[1];
+    return /*#__PURE__*/React.createElement("button", {
+      key: k,
+      onClick: () => setTipo(k),
+      style: {
+        flexShrink: 0,
+        padding: "8px 13px",
+        borderRadius: 20,
+        cursor: "pointer",
+        fontFamily: "'Sora',sans-serif",
+        fontWeight: 700,
+        fontSize: 12,
+        background: tipo === k ? "#E8682A" : "var(--bg-elevated)",
+        border: "1px solid " + (tipo === k ? "#E8682A" : "var(--bg-elevated)"),
+        color: tipo === k ? "#fff" : "var(--text-secondary)"
+      }
+    }, lbl);
+  })),
+  // seletor de período (só para relatórios temporais)
+  tipo !== "entregas" && tipo !== "fornecedores" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 14,
+      flexWrap: "wrap"
+    }
+  }, [["hoje", "Hoje"], ["7dias", "7 dias"], ["30dias", "30 dias"], ["sempre", "Sempre"]].map(_pp => {
+    let _ppB = _slicedToArray(_pp, 2),
+      k = _ppB[0],
+      lbl = _ppB[1];
+    return /*#__PURE__*/React.createElement("button", {
+      key: k,
+      onClick: () => setPeriodo(k),
+      style: {
+        ...S.btn(periodo === k ? "primary" : "ghost"),
+        padding: "6px 12px",
+        fontSize: 12
+      }
+    }, lbl);
+  })),
+  // botão PDF
+  /*#__PURE__*/React.createElement("button", {
+    onClick: gerarPDF,
+    style: {
+      ...S.btn("ghost"),
+      width: "100%",
+      justifyContent: "center",
+      padding: "10px",
+      marginBottom: 14,
+      fontSize: 13
+    }
+  }, "🖨️ Gerar PDF deste relatório"),
+  // conteúdo
+  /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.card,
+      padding: "16px"
+    }
+  }, renderRelatorioConteudo(tipo, {
+    relVendas,
+    relClientes,
+    relPagamento,
+    relEntregas,
+    relFornecedores,
+    S
+  })));
+}
+
+// Renderiza o conteúdo do relatório selecionado na tela
+function renderRelatorioConteudo(tipo, d) {
+  const S = d.S;
+  const linha = (label, valor, cor) => /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      padding: "9px 0",
+      borderBottom: "1px solid var(--bg-elevated)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      color: "var(--text-secondary)"
+    }
+  }, label), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 14,
+      fontWeight: 700,
+      color: cor || "var(--text-primary)"
+    }
+  }, valor));
+
+  if (tipo === "vendas") {
+    const v = d.relVendas;
+    return /*#__PURE__*/React.createElement("div", null, linha("Total de vendas", fmt(v.total), "#4ade80"), linha("Quantidade", v.qtd + " venda(s)"), linha("Ticket médio", fmt(v.ticket)), linha("🏪 Varejo", v.qtdVarejo + " · " + fmt(v.totalVarejo)), linha("📦 Atacado", v.qtdAtacado + " · " + fmt(v.totalAtacado)));
+  }
+  if (tipo === "clientes") {
+    if (d.relClientes.length === 0) return /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: "center",
+        color: "var(--text-secondary)",
+        padding: 20
+      }
+    }, "Nenhuma venda no período.");
+    return /*#__PURE__*/React.createElement("div", null, d.relClientes.map((c, i) => linha((i + 1) + ". " + c.nome + " (" + c.qtd + ")", fmt(c.total), i === 0 ? "#f59e0b" : null)));
+  }
+  if (tipo === "pagamento") {
+    if (d.relPagamento.length === 0) return /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: "center",
+        color: "var(--text-secondary)",
+        padding: 20
+      }
+    }, "Nenhuma venda no período.");
+    return /*#__PURE__*/React.createElement("div", null, d.relPagamento.map(p => linha(p.forma + " (" + p.qtd + ")", fmt(p.total))));
+  }
+  if (tipo === "entregas") {
+    const e = d.relEntregas;
+    return /*#__PURE__*/React.createElement("div", null, linha("📋 Pedido", e.porStatus.pedido + ""), linha("📦 Separando", e.porStatus.separando + ""), linha("🚚 Em Rota", e.porStatus.rota + ""), linha("✅ Concluído", e.porStatus.concluido + "", "#4ade80"), linha("Total de pedidos", e.qtd + ""), linha("Valor total", fmt(e.totalValor), "#4ade80"));
+  }
+  if (tipo === "fornecedores") {
+    if (d.relFornecedores.length === 0) return /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: "center",
+        color: "var(--text-secondary)",
+        padding: 20
+      }
+    }, "Nenhum fornecedor cadastrado.");
+    return /*#__PURE__*/React.createElement("div", null, d.relFornecedores.map((f, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        padding: "9px 0",
+        borderBottom: "1px solid var(--bg-elevated)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700
+      }
+    }, f.nome), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: "var(--text-secondary)"
+      }
+    }, [f.cnpj, f.telefone, f.cidade].filter(Boolean).join(" · ")))));
+  }
+  return null;
+}
+
 function PDVApp() {
   var _NAV$find;
   const screen = useScreenSize();
@@ -9360,6 +9681,11 @@ function PDVApp() {
     _useState204 = _slicedToArray(_useState203, 2),
     searchCust = _useState204[0],
     setSearchCust = _useState204[1];
+  // Ordenação de clientes
+  const _useStateCliSort = useState("nome"),
+    _useStateCliSortB = _slicedToArray(_useStateCliSort, 2),
+    cliOrdenar = _useStateCliSortB[0],
+    setCliOrdenar = _useStateCliSortB[1];
   const _useState205 = useState("Todos"),
     _useState206 = _slicedToArray(_useState205, 2),
     filterCat = _useState206[0],
@@ -9392,6 +9718,11 @@ function PDVApp() {
     _useState220 = _slicedToArray(_useState219, 2),
     showFilters = _useState220[0],
     setShowFilters = _useState220[1];
+  // Mostrar preço de atacado nos cards do estoque
+  const _useStateMostraAtac = useState(false),
+    _useStateMostraAtacB = _slicedToArray(_useStateMostraAtac, 2),
+    mostrarPrecoAtacado = _useStateMostraAtacB[0],
+    setMostrarPrecoAtacado = _useStateMostraAtacB[1];
   const _useState221 = useState("name"),
     _useState222 = _slicedToArray(_useState221, 2),
     sortBy = _useState222[0],
@@ -9432,6 +9763,27 @@ function PDVApp() {
     _useState234 = _slicedToArray(_useState233, 2),
     editSale = _useState234[0],
     setEditSale = _useState234[1]; // venda sendo editada no histórico
+  // Filtros do Histórico
+  const _useStateHF1 = useState(""),
+    _useStateHF1b = _slicedToArray(_useStateHF1, 2),
+    histBusca = _useStateHF1b[0],
+    setHistBusca = _useStateHF1b[1];
+  const _useStateHF2 = useState("todos"),
+    _useStateHF2b = _slicedToArray(_useStateHF2, 2),
+    histTipo = _useStateHF2b[0],
+    setHistTipo = _useStateHF2b[1];
+  const _useStateHF3 = useState("todos"),
+    _useStateHF3b = _slicedToArray(_useStateHF3, 2),
+    histPgto = _useStateHF3b[0],
+    setHistPgto = _useStateHF3b[1];
+  const _useStateHF4 = useState("todos"),
+    _useStateHF4b = _slicedToArray(_useStateHF4, 2),
+    histPeriodo = _useStateHF4b[0],
+    setHistPeriodo = _useStateHF4b[1];
+  const _useStateHF5 = useState(false),
+    _useStateHF5b = _slicedToArray(_useStateHF5, 2),
+    histFiltrosAbertos = _useStateHF5b[0],
+    setHistFiltrosAbertos = _useStateHF5b[1];
   const _useState235 = useState({
       customer: "",
       payment: "",
@@ -10068,6 +10420,42 @@ function PDVApp() {
   const todaySales = sales.filter(s => s.date === todayStr());
   const todayRev = todaySales.reduce((s, v) => s + v.total, 0);
   const totalRev = sales.reduce((s, v) => s + v.total, 0);
+  // Vendas filtradas do Histórico
+  const histFiltradas = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const diaMs = 86400000;
+    return (sales || []).filter(s => {
+      // Busca por cliente ou item
+      if (histBusca.trim()) {
+        const q = histBusca.toLowerCase();
+        const noCliente = (s.customer || "").toLowerCase().includes(q);
+        const noItem = (s.items || []).some(i => (i.name || "").toLowerCase().includes(q));
+        if (!noCliente && !noItem) return false;
+      }
+      // Tipo: varejo / atacado
+      if (histTipo === "atacado" && s.tipo !== "atacado") return false;
+      if (histTipo === "varejo" && s.tipo === "atacado") return false;
+      // Forma de pagamento
+      if (histPgto !== "todos") {
+        if (histPgto === "prazo" && s.payment !== "A Prazo") return false;
+        if (histPgto === "dinheiro" && s.payment !== "Dinheiro") return false;
+        if (histPgto === "pix" && !(s.payment || "").includes("Pix")) return false;
+        if (histPgto === "cartao" && !(s.payment || "").includes("Cartão")) return false;
+      }
+      // Período
+      if (histPeriodo !== "todos" && s.date) {
+        const dv = new Date(s.date + "T12:00");
+        dv.setHours(0, 0, 0, 0);
+        const diff = (hoje - dv) / diaMs;
+        if (histPeriodo === "hoje" && diff !== 0) return false;
+        if (histPeriodo === "7dias" && (diff < 0 || diff > 7)) return false;
+        if (histPeriodo === "30dias" && (diff < 0 || diff > 30)) return false;
+      }
+      return true;
+    });
+  }, [sales, histBusca, histTipo, histPgto, histPeriodo]);
+  const histTotalFiltrado = histFiltradas.reduce((s, v) => s + (v.total || 0), 0);
   const lowStock = products.filter(p => p.stock > 0 && p.stock < (p.minStock || 10));
   const outStock = products.filter(p => p.stock === 0);
   const listaItems = load("pdv_lista_compras", []);
@@ -10132,6 +10520,11 @@ function PDVApp() {
     label: "Fornecedores",
     icon: "users",
     perm: perm("fornecedores") || (currentUser === null || currentUser === void 0 ? void 0 : currentUser.role) === "admin"
+  }, {
+    id: "relatorios",
+    label: "Relatórios",
+    icon: "receipt",
+    perm: (currentUser === null || currentUser === void 0 ? void 0 : currentUser.role) === "admin"
   }].filter(n => n.perm);
   const goTo = id => {
     setPage(id);
@@ -11123,6 +11516,42 @@ function PDVApp() {
   }, "Habilitado p/ Atacado"), /*#__PURE__*/React.createElement("option", {
     value: "varejo"
   }, "Só Varejo"))), /*#__PURE__*/React.createElement("div", {
+    onClick: () => setMostrarPrecoAtacado(v => !v),
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 10,
+      cursor: "pointer",
+      padding: "6px 2px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 40,
+      height: 22,
+      borderRadius: 11,
+      background: mostrarPrecoAtacado ? "#f59e0b" : "var(--bg-elevated)",
+      position: "relative",
+      transition: "background .2s",
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 18,
+      height: 18,
+      borderRadius: "50%",
+      background: "#fff",
+      position: "absolute",
+      top: 2,
+      left: mostrarPrecoAtacado ? 20 : 2,
+      transition: "left .2s"
+    }
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      color: "var(--text-primary)"
+    }
+  }, "Mostrar pre\xE7o de atacado nos produtos")), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 8
     }
@@ -11478,6 +11907,13 @@ function PDVApp() {
     notify: notify,
     fornecedores: fornecedores,
     persistForn: persistForn
+  }), page === "relatorios" && /*#__PURE__*/React.createElement(RelatoriosPage, {
+    S: S,
+    sales: sales,
+    customers: customers,
+    pedidos: pedidos,
+    fornecedores: fornecedores,
+    notify: notify
   }), page === "lista" && /*#__PURE__*/React.createElement(ListaComprasPage, {
     S: S,
     notify: notify,
@@ -11715,7 +12151,14 @@ function PDVApp() {
       color: "#E8682A",
       marginBottom: 3
     }
-  }, fmt(prod.price)), /*#__PURE__*/React.createElement("span", {
+  }, fmt(prod.price)), mostrarPrecoAtacado && prod.atacadoHabilitado && prod.priceAtacado && +prod.priceAtacado > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#f59e0b",
+      marginBottom: 3
+    }
+  }, "\uD83D\uDCE6 ", fmt(prod.priceAtacado)), /*#__PURE__*/React.createElement("span", {
     style: S.badge(prod.stock === 0 ? "#ff3b3b" : prod.stock < (prod.minStock || 10) ? "#F07030" : "#4ade80")
   }, prod.stock === 0 ? "Esgotado" : prod.stock + " " + (prod.stock < (prod.minStock || 10) ? "⚠️" : "ok"))), /*#__PURE__*/React.createElement("button", {
     onClick: e => {
@@ -11776,7 +12219,34 @@ function PDVApp() {
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "plus",
     size: 14
-  }), " Novo")), customers.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
+  }), " Novo")), customers.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 12,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "var(--text-secondary)",
+      alignSelf: "center",
+      marginRight: 2
+    }
+  }, "Ordenar:"), [["nome", "A-Z"], ["recente", "Recentes"], ["gasto", "Maior gasto"]].map(_ref80 => {
+    let _ref81 = _slicedToArray(_ref80, 2),
+      k = _ref81[0],
+      lbl = _ref81[1];
+    return /*#__PURE__*/React.createElement("button", {
+      key: k,
+      onClick: () => setCliOrdenar(k),
+      style: {
+        ...S.btn(cliOrdenar === k ? "primary" : "ghost"),
+        padding: "5px 11px",
+        fontSize: 12
+      }
+    }, lbl);
+  })), customers.length === 0 ? /*#__PURE__*/React.createElement(EmptyState, {
     icon: "\uD83D\uDC65",
     title: "Nenhum cliente",
     desc: "Cadastre clientes para identificar vendas.",
@@ -11790,7 +12260,15 @@ function PDVApp() {
       name: "plus",
       size: 14
     }), " Cadastrar")
-  }) : customers.filter(c => c.name.toLowerCase().includes(searchCust.toLowerCase())).map(c => /*#__PURE__*/React.createElement("div", {
+  }) : [...customers].filter(c => {
+    const q = searchCust.toLowerCase();
+    return c.name.toLowerCase().includes(q) || (c.phone || "").includes(searchCust) || (c.cpf || "").includes(searchCust);
+  }).sort((a, b) => {
+    if (cliOrdenar === "nome") return a.name.localeCompare(b.name);
+    if (cliOrdenar === "recente") return (b.lastVisit || 0) > (a.lastVisit || 0) ? 1 : -1;
+    if (cliOrdenar === "gasto") return (b.totalGasto || 0) - (a.totalGasto || 0);
+    return 0;
+  }).map(c => /*#__PURE__*/React.createElement("div", {
     key: c.id,
     style: {
       ...S.card,
@@ -11951,7 +12429,22 @@ function PDVApp() {
       fontSize: 13,
       color: "var(--text-secondary)"
     }
-  }, sales.length, " venda", sales.length !== 1 ? "s" : "", " \xB7 ", fmt(totalRev)), /*#__PURE__*/React.createElement("button", {
+  }, histFiltradas.length, " de ", sales.length, " venda", sales.length !== 1 ? "s" : "", " \xB7 ", fmt(histTotalFiltrado)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setHistFiltrosAbertos(f => !f),
+    style: {
+      ...S.btn(histFiltrosAbertos || histBusca || histTipo !== "todos" || histPgto !== "todos" || histPeriodo !== "todos" ? "primary" : "ghost"),
+      padding: "7px 12px",
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "sliders",
+    size: 14
+  }), " Filtros"), /*#__PURE__*/React.createElement("button", {
     onClick: exportPDF,
     style: {
       ...S.btn("ghost"),
@@ -11961,7 +12454,78 @@ function PDVApp() {
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "pdf",
     size: 14
-  }), " PDF")), sales.map(s => /*#__PURE__*/React.createElement("div", {
+  }), " PDF"))), histFiltrosAbertos && /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.card,
+      marginBottom: 12,
+      padding: "12px 14px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    placeholder: "Buscar por cliente ou produto...",
+    value: histBusca,
+    onChange: e => setHistBusca(e.target.value)
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, [["todos", "Todos"], ["varejo", "🏪 Varejo"], ["atacado", "📦 Atacado"]].map(_ref70 => {
+    let _ref71 = _slicedToArray(_ref70, 2),
+      k = _ref71[0],
+      lbl = _ref71[1];
+    return /*#__PURE__*/React.createElement("button", {
+      key: k,
+      onClick: () => setHistTipo(k),
+      style: {
+        ...S.btn(histTipo === k ? "primary" : "ghost"),
+        padding: "6px 11px",
+        fontSize: 12
+      }
+    }, lbl);
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, [["todos", "Todo pgto"], ["dinheiro", "💵 Dinheiro"], ["pix", "📲 Pix"], ["cartao", "💳 Cartão"], ["prazo", "⚠️ A Prazo"]].map(_ref72 => {
+    let _ref73 = _slicedToArray(_ref72, 2),
+      k = _ref73[0],
+      lbl = _ref73[1];
+    return /*#__PURE__*/React.createElement("button", {
+      key: k,
+      onClick: () => setHistPgto(k),
+      style: {
+        ...S.btn(histPgto === k ? "primary" : "ghost"),
+        padding: "6px 11px",
+        fontSize: 12
+      }
+    }, lbl);
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, [["todos", "Sempre"], ["hoje", "Hoje"], ["7dias", "7 dias"], ["30dias", "30 dias"]].map(_ref74 => {
+    let _ref75 = _slicedToArray(_ref74, 2),
+      k = _ref75[0],
+      lbl = _ref75[1];
+    return /*#__PURE__*/React.createElement("button", {
+      key: k,
+      onClick: () => setHistPeriodo(k),
+      style: {
+        ...S.btn(histPeriodo === k ? "primary" : "ghost"),
+        padding: "6px 11px",
+        fontSize: 12
+      }
+    }, lbl);
+  }))), histFiltradas.map(s => /*#__PURE__*/React.createElement("div", {
     key: s.id,
     style: {
       ...S.card,
