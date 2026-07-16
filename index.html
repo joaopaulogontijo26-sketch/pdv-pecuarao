@@ -9223,6 +9223,8 @@ function RelatoriosPage(_refRel) {
     customers = _refRel.customers,
     pedidos = _refRel.pedidos,
     fornecedores = _refRel.fornecedores,
+    products = _refRel.products,
+    users = _refRel.users,
     notify = _refRel.notify;
   const _rState = useState("vendas"),
     _rStateB = _slicedToArray(_rState, 2),
@@ -9232,9 +9234,32 @@ function RelatoriosPage(_refRel) {
     _rPerB = _slicedToArray(_rPer, 2),
     periodo = _rPerB[0],
     setPeriodo = _rPerB[1];
+  const _rD1 = useState(""),
+    _rD1B = _slicedToArray(_rD1, 2),
+    dataIni = _rD1B[0],
+    setDataIni = _rD1B[1];
+  const _rD2 = useState(""),
+    _rD2B = _slicedToArray(_rD2, 2),
+    dataFim = _rD2B[0],
+    setDataFim = _rD2B[1];
 
-  // Filtra vendas pelo período escolhido
+  // Custo atual de um produto pelo nome (usado nos cálculos de lucro)
+  const custoDe = nome => {
+    const p = (products || []).find(x => x.name === nome);
+    return p ? +(p.costPrice || 0) : 0;
+  };
+
+  // Filtra vendas pelo período escolhido (rápido ou personalizado)
   const noPeriodo = lista => {
+    if (periodo === "personalizado") {
+      if (!dataIni && !dataFim) return lista;
+      return lista.filter(s => {
+        if (!s.date) return false;
+        if (dataIni && s.date < dataIni) return false;
+        if (dataFim && s.date > dataFim) return false;
+        return true;
+      });
+    }
     if (periodo === "sempre") return lista;
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -9250,7 +9275,7 @@ function RelatoriosPage(_refRel) {
   };
   const vendasPer = noPeriodo(sales || []);
 
-  // ── Dados de cada relatório ──
+  // ── VENDAS ──
   const relVendas = (() => {
     const total = vendasPer.reduce((s, v) => s + (v.total || 0), 0);
     const qtd = vendasPer.length;
@@ -9268,6 +9293,55 @@ function RelatoriosPage(_refRel) {
     };
   })();
 
+  // ── LUCRO ── (receita - custo, usando custo atual do estoque)
+  const relLucro = (() => {
+    let receita = 0,
+      custo = 0;
+    vendasPer.forEach(s => {
+      (s.items || []).forEach(i => {
+        const qtd = i.qty || 0;
+        receita += (i.price || 0) * qtd;
+        const c = i.cost != null && i.cost > 0 ? i.cost : custoDe(i.name);
+        custo += c * qtd;
+      });
+    });
+    const lucro = receita - custo;
+    const margem = receita > 0 ? lucro / receita * 100 : 0;
+    return {
+      receita,
+      custo,
+      lucro,
+      margem
+    };
+  })();
+
+  // ── COMISSÃO ── (por vendedor + geral)
+  const relComissao = (() => {
+    const porVendedor = {};
+    let geral = 0;
+    vendasPer.forEach(s => {
+      const v = s.comissaoValor || 0;
+      if (v <= 0) return;
+      const nome = s.vendedor || "Sem vendedor";
+      if (!porVendedor[nome]) porVendedor[nome] = {
+        nome,
+        total: 0,
+        qtd: 0,
+        pago: 0,
+        pendente: 0
+      };
+      porVendedor[nome].total += v;
+      porVendedor[nome].qtd += 1;
+      if (s.comissaoPaga) porVendedor[nome].pago += v;else porVendedor[nome].pendente += v;
+      geral += v;
+    });
+    return {
+      lista: Object.values(porVendedor).sort((a, b) => b.total - a.total),
+      geral
+    };
+  })();
+
+  // ── CLIENTES ──
   const relClientes = (() => {
     const mapa = {};
     vendasPer.forEach(s => {
@@ -9283,6 +9357,7 @@ function RelatoriosPage(_refRel) {
     return Object.values(mapa).sort((a, b) => b.total - a.total);
   })();
 
+  // ── PAGAMENTO ──
   const relPagamento = (() => {
     const mapa = {};
     vendasPer.forEach(s => {
@@ -9298,6 +9373,58 @@ function RelatoriosPage(_refRel) {
     return Object.values(mapa).sort((a, b) => b.total - a.total);
   })();
 
+  // ── PRODUTOS: retorno no período (fat, qtd, lucro) ──
+  const relProdutos = (() => {
+    const mapa = {};
+    vendasPer.forEach(s => {
+      (s.items || []).forEach(i => {
+        const nome = i.name || "—";
+        if (!mapa[nome]) mapa[nome] = {
+          nome,
+          qtd: 0,
+          fat: 0,
+          lucro: 0
+        };
+        const q = i.qty || 0;
+        const c = i.cost != null && i.cost > 0 ? i.cost : custoDe(nome);
+        mapa[nome].qtd += q;
+        mapa[nome].fat += (i.price || 0) * q;
+        mapa[nome].lucro += ((i.price || 0) - c) * q;
+      });
+    });
+    return Object.values(mapa);
+  })();
+
+  // ── ESTOQUE: valor total, custo, venda por mercadoria ──
+  const relEstoque = (() => {
+    let totalCusto = 0,
+      totalVenda = 0;
+    const lista = (products || []).map(p => {
+      const est = +(p.stock || 0);
+      const custoU = +(p.costPrice || 0);
+      const vendaU = +(p.price || 0);
+      const vCusto = est * custoU;
+      const vVenda = est * vendaU;
+      totalCusto += vCusto;
+      totalVenda += vVenda;
+      return {
+        nome: p.name,
+        est,
+        custoU,
+        vendaU,
+        vCusto,
+        vVenda
+      };
+    }).sort((a, b) => b.vVenda - a.vVenda);
+    return {
+      lista,
+      totalCusto,
+      totalVenda,
+      lucroPotencial: totalVenda - totalCusto
+    };
+  })();
+
+  // ── ENTREGAS ──
   const relEntregas = (() => {
     const porStatus = {
       pedido: 0,
@@ -9316,35 +9443,50 @@ function RelatoriosPage(_refRel) {
     };
   })();
 
-  const relFornecedores = (() => {
-    return (fornecedores || []).map(f => ({
-      nome: f.nome || "—",
-      cnpj: f.cnpj || "",
-      telefone: f.telefone || "",
-      cidade: f.cidade || ""
-    })).sort((a, b) => a.nome.localeCompare(b.nome));
-  })();
+  // ── FORNECEDORES ──
+  const relFornecedores = (fornecedores || []).map(f => ({
+    nome: f.nome || "—",
+    cnpj: f.cnpj || "",
+    telefone: f.telefone || "",
+    cidade: f.cidade || ""
+  })).sort((a, b) => a.nome.localeCompare(b.nome));
 
-  // ── Geração de PDF (janela de impressão) ──
-  const periodoLabel = periodo === "hoje" ? "Hoje" : periodo === "7dias" ? "Últimos 7 dias" : periodo === "30dias" ? "Últimos 30 dias" : "Todo o período";
+  const temporal = tipo !== "entregas" && tipo !== "fornecedores" && tipo !== "estoque";
+  const periodoLabel = periodo === "hoje" ? "Hoje" : periodo === "7dias" ? "Últimos 7 dias" : periodo === "30dias" ? "Últimos 30 dias" : periodo === "personalizado" ? (dataIni || "início") + " até " + (dataFim || "hoje") : "Todo o período";
+
+  // ── PDF ──
   const gerarPDF = () => {
     let titulo = "",
       corpo = "";
     const th = "style='text-align:left;padding:8px;border-bottom:2px solid #333;font-size:12px'";
     const td = "style='padding:7px 8px;border-bottom:1px solid #ddd;font-size:12px'";
     const tdR = "style='padding:7px 8px;border-bottom:1px solid #ddd;font-size:12px;text-align:right'";
+    const tdC = "style='padding:7px 8px;border-bottom:1px solid #ddd;font-size:12px;text-align:center'";
     if (tipo === "vendas") {
       titulo = "Relatório de Vendas";
-      corpo = "<table style='width:100%;border-collapse:collapse'>" + "<tr><td " + td + ">Total de vendas</td><td " + tdR + "><b>" + fmt(relVendas.total) + "</b></td></tr>" + "<tr><td " + td + ">Quantidade de vendas</td><td " + tdR + ">" + relVendas.qtd + "</td></tr>" + "<tr><td " + td + ">Ticket médio</td><td " + tdR + ">" + fmt(relVendas.ticket) + "</td></tr>" + "<tr><td " + td + ">Vendas Varejo</td><td " + tdR + ">" + relVendas.qtdVarejo + " · " + fmt(relVendas.totalVarejo) + "</td></tr>" + "<tr><td " + td + ">Vendas Atacado</td><td " + tdR + ">" + relVendas.qtdAtacado + " · " + fmt(relVendas.totalAtacado) + "</td></tr>" + "</table>";
+      corpo = "<table style='width:100%;border-collapse:collapse'>" + "<tr><td " + td + ">Total de vendas</td><td " + tdR + "><b>" + fmt(relVendas.total) + "</b></td></tr>" + "<tr><td " + td + ">Quantidade</td><td " + tdR + ">" + relVendas.qtd + "</td></tr>" + "<tr><td " + td + ">Ticket médio</td><td " + tdR + ">" + fmt(relVendas.ticket) + "</td></tr>" + "<tr><td " + td + ">Varejo</td><td " + tdR + ">" + relVendas.qtdVarejo + " · " + fmt(relVendas.totalVarejo) + "</td></tr>" + "<tr><td " + td + ">Atacado</td><td " + tdR + ">" + relVendas.qtdAtacado + " · " + fmt(relVendas.totalAtacado) + "</td></tr>" + "</table>";
+    } else if (tipo === "lucro") {
+      titulo = "Relatório de Lucro";
+      corpo = "<table style='width:100%;border-collapse:collapse'>" + "<tr><td " + td + ">Receita (vendas)</td><td " + tdR + ">" + fmt(relLucro.receita) + "</td></tr>" + "<tr><td " + td + ">Custo das mercadorias</td><td " + tdR + ">" + fmt(relLucro.custo) + "</td></tr>" + "<tr><td " + td + "><b>Lucro bruto</b></td><td " + tdR + "><b>" + fmt(relLucro.lucro) + "</b></td></tr>" + "<tr><td " + td + ">Margem</td><td " + tdR + ">" + relLucro.margem.toFixed(1) + "%</td></tr>" + "</table><p style='font-size:11px;color:#888'>Custo baseado no valor atual de cada produto no estoque.</p>";
+    } else if (tipo === "comissao") {
+      titulo = "Relatório de Comissões";
+      corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Vendedor</th><th " + th + " style='text-align:center'>Vendas</th><th " + th + " style='text-align:right'>Pendente</th><th " + th + " style='text-align:right'>Pago</th><th " + th + " style='text-align:right'>Total</th></tr>" + relComissao.lista.map(c => "<tr><td " + td + ">" + c.nome + "</td><td " + tdC + ">" + c.qtd + "</td><td " + tdR + ">" + fmt(c.pendente) + "</td><td " + tdR + ">" + fmt(c.pago) + "</td><td " + tdR + "><b>" + fmt(c.total) + "</b></td></tr>").join("") + "<tr><td " + td + " colspan='4'><b>Total geral</b></td><td " + tdR + "><b>" + fmt(relComissao.geral) + "</b></td></tr></table>";
     } else if (tipo === "clientes") {
       titulo = "Relatório de Clientes";
-      corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Cliente</th><th " + th + " style='text-align:center'>Compras</th><th " + th + " style='text-align:right'>Total</th></tr>" + relClientes.map(c => "<tr><td " + td + ">" + c.nome + "</td><td " + td + " style='text-align:center'>" + c.qtd + "</td><td " + tdR + ">" + fmt(c.total) + "</td></tr>").join("") + "</table>";
+      corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Cliente</th><th " + th + " style='text-align:center'>Compras</th><th " + th + " style='text-align:right'>Total</th></tr>" + relClientes.map(c => "<tr><td " + td + ">" + c.nome + "</td><td " + tdC + ">" + c.qtd + "</td><td " + tdR + ">" + fmt(c.total) + "</td></tr>").join("") + "</table>";
     } else if (tipo === "pagamento") {
       titulo = "Relatório de Meios de Pagamento";
-      corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Forma</th><th " + th + " style='text-align:center'>Qtd</th><th " + th + " style='text-align:right'>Total</th></tr>" + relPagamento.map(p => "<tr><td " + td + ">" + p.forma + "</td><td " + td + " style='text-align:center'>" + p.qtd + "</td><td " + tdR + ">" + fmt(p.total) + "</td></tr>").join("") + "</table>";
+      corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Forma</th><th " + th + " style='text-align:center'>Qtd</th><th " + th + " style='text-align:right'>Total</th></tr>" + relPagamento.map(p => "<tr><td " + td + ">" + p.forma + "</td><td " + tdC + ">" + p.qtd + "</td><td " + tdR + ">" + fmt(p.total) + "</td></tr>").join("") + "</table>";
+    } else if (tipo === "produtos") {
+      titulo = "Produtos — Retorno no Período";
+      const ord = [...relProdutos].sort((a, b) => b.lucro - a.lucro);
+      corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Produto</th><th " + th + " style='text-align:center'>Qtd</th><th " + th + " style='text-align:right'>Faturamento</th><th " + th + " style='text-align:right'>Lucro</th></tr>" + ord.map(p => "<tr><td " + td + ">" + p.nome + "</td><td " + tdC + ">" + p.qtd + "</td><td " + tdR + ">" + fmt(p.fat) + "</td><td " + tdR + ">" + fmt(p.lucro) + "</td></tr>").join("") + "</table>";
+    } else if (tipo === "estoque") {
+      titulo = "Relatório de Estoque (valor)";
+      corpo = "<table style='width:100%;border-collapse:collapse'>" + "<tr><td " + td + ">Valor total em custo</td><td " + tdR + ">" + fmt(relEstoque.totalCusto) + "</td></tr>" + "<tr><td " + td + ">Valor total em venda</td><td " + tdR + ">" + fmt(relEstoque.totalVenda) + "</td></tr>" + "<tr><td " + td + "><b>Lucro potencial</b></td><td " + tdR + "><b>" + fmt(relEstoque.lucroPotencial) + "</b></td></tr></table>" + "<table style='width:100%;border-collapse:collapse;margin-top:14px'><tr><th " + th + ">Mercadoria</th><th " + th + " style='text-align:center'>Estoque</th><th " + th + " style='text-align:right'>Custo tot.</th><th " + th + " style='text-align:right'>Venda tot.</th></tr>" + relEstoque.lista.map(p => "<tr><td " + td + ">" + p.nome + "</td><td " + tdC + ">" + p.est + "</td><td " + tdR + ">" + fmt(p.vCusto) + "</td><td " + tdR + ">" + fmt(p.vVenda) + "</td></tr>").join("") + "</table>";
     } else if (tipo === "entregas") {
       titulo = "Relatório de Entregas";
-      corpo = "<table style='width:100%;border-collapse:collapse'>" + "<tr><td " + td + ">📋 Pedido</td><td " + tdR + ">" + relEntregas.porStatus.pedido + "</td></tr>" + "<tr><td " + td + ">📦 Separando</td><td " + tdR + ">" + relEntregas.porStatus.separando + "</td></tr>" + "<tr><td " + td + ">🚚 Em Rota</td><td " + tdR + ">" + relEntregas.porStatus.rota + "</td></tr>" + "<tr><td " + td + ">✅ Concluído</td><td " + tdR + ">" + relEntregas.porStatus.concluido + "</td></tr>" + "<tr><td " + td + "><b>Total de pedidos</b></td><td " + tdR + "><b>" + relEntregas.qtd + "</b></td></tr>" + "<tr><td " + td + ">Valor total</td><td " + tdR + ">" + fmt(relEntregas.totalValor) + "</td></tr>" + "</table>";
+      corpo = "<table style='width:100%;border-collapse:collapse'>" + "<tr><td " + td + ">📋 Pedido</td><td " + tdR + ">" + relEntregas.porStatus.pedido + "</td></tr>" + "<tr><td " + td + ">📦 Separando</td><td " + tdR + ">" + relEntregas.porStatus.separando + "</td></tr>" + "<tr><td " + td + ">🚚 Em Rota</td><td " + tdR + ">" + relEntregas.porStatus.rota + "</td></tr>" + "<tr><td " + td + ">✅ Concluído</td><td " + tdR + ">" + relEntregas.porStatus.concluido + "</td></tr>" + "<tr><td " + td + "><b>Total</b></td><td " + tdR + "><b>" + relEntregas.qtd + "</b></td></tr>" + "<tr><td " + td + ">Valor total</td><td " + tdR + ">" + fmt(relEntregas.totalValor) + "</td></tr></table>";
     } else if (tipo === "fornecedores") {
       titulo = "Relatório de Fornecedores";
       corpo = "<table style='width:100%;border-collapse:collapse'><tr><th " + th + ">Fornecedor</th><th " + th + ">CNPJ</th><th " + th + ">Telefone</th><th " + th + ">Cidade</th></tr>" + relFornecedores.map(f => "<tr><td " + td + ">" + f.nome + "</td><td " + td + ">" + f.cnpj + "</td><td " + td + ">" + f.telefone + "</td><td " + td + ">" + f.cidade + "</td></tr>").join("") + "</table>";
@@ -9354,15 +9496,14 @@ function RelatoriosPage(_refRel) {
       notify("Permita pop-ups para gerar o PDF.", "warn");
       return;
     }
-    win.document.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>" + titulo + "</title></head>" + "<body style='font-family:Arial,sans-serif;padding:30px;color:#222'>" + "<h2 style='color:#E8682A;margin:0 0 4px'>" + titulo + "</h2>" + "<div style='color:#666;font-size:13px;margin-bottom:18px'>Pecuarão Gontijo · " + (tipo === "entregas" || tipo === "fornecedores" ? "Situação atual" : periodoLabel) + " · " + new Date().toLocaleString("pt-BR") + "</div>" + corpo + "<script>setTimeout(function(){window.print()},400)<\/script></body></html>");
+    const contexto = tipo === "entregas" || tipo === "fornecedores" || tipo === "estoque" ? "Situação atual" : periodoLabel;
+    win.document.write("<!DOCTYPE html><html><head><meta charset='utf-8'><title>" + titulo + "</title></head>" + "<body style='font-family:Arial,sans-serif;padding:30px;color:#222'>" + "<h2 style='color:#E8682A;margin:0 0 4px'>" + titulo + "</h2>" + "<div style='color:#666;font-size:13px;margin-bottom:18px'>Pecuarão Gontijo · " + contexto + " · " + new Date().toLocaleString("pt-BR") + "</div>" + corpo + "<script>setTimeout(function(){window.print()},400)<\/script></body></html>");
     win.document.close();
   };
 
-  const abas = [["vendas", "💰 Vendas"], ["clientes", "👥 Clientes"], ["entregas", "🚚 Entregas"], ["fornecedores", "🏭 Fornecedores"], ["pagamento", "💳 Pagamentos"]];
+  const abas = [["vendas", "💰 Vendas"], ["lucro", "📈 Lucro"], ["comissao", "🤝 Comissão"], ["produtos", "🏆 Produtos"], ["estoque", "📦 Estoque"], ["clientes", "👥 Clientes"], ["entregas", "🚚 Entregas"], ["fornecedores", "🏭 Fornecedores"], ["pagamento", "💳 Pagamentos"]];
 
-  return /*#__PURE__*/React.createElement("div", null,
-  // seletor de tipo de relatório
-  /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
@@ -9391,16 +9532,14 @@ function RelatoriosPage(_refRel) {
         color: tipo === k ? "#fff" : "var(--text-secondary)"
       }
     }, lbl);
-  })),
-  // seletor de período (só para relatórios temporais)
-  tipo !== "entregas" && tipo !== "fornecedores" && /*#__PURE__*/React.createElement("div", {
+  })), temporal && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
-      marginBottom: 14,
+      marginBottom: 10,
       flexWrap: "wrap"
     }
-  }, [["hoje", "Hoje"], ["7dias", "7 dias"], ["30dias", "30 dias"], ["sempre", "Sempre"]].map(_pp => {
+  }, [["hoje", "Hoje"], ["7dias", "7 dias"], ["30dias", "30 dias"], ["sempre", "Sempre"], ["personalizado", "📅 Personalizado"]].map(_pp => {
     let _ppB = _slicedToArray(_pp, 2),
       k = _ppB[0],
       lbl = _ppB[1];
@@ -9413,9 +9552,37 @@ function RelatoriosPage(_refRel) {
         fontSize: 12
       }
     }, lbl);
-  })),
-  // botão PDF
-  /*#__PURE__*/React.createElement("button", {
+  })), temporal && periodo === "personalizado" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginBottom: 12,
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: {
+      ...S.input,
+      fontSize: 12,
+      padding: "8px 10px"
+    },
+    value: dataIni,
+    onChange: e => setDataIni(e.target.value)
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "var(--text-secondary)",
+      fontSize: 12
+    }
+  }, "até"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    style: {
+      ...S.input,
+      fontSize: 12,
+      padding: "8px 10px"
+    },
+    value: dataFim,
+    onChange: e => setDataFim(e.target.value)
+  })), /*#__PURE__*/React.createElement("button", {
     onClick: gerarPDF,
     style: {
       ...S.btn("ghost"),
@@ -9425,17 +9592,19 @@ function RelatoriosPage(_refRel) {
       marginBottom: 14,
       fontSize: 13
     }
-  }, "🖨️ Gerar PDF deste relatório"),
-  // conteúdo
-  /*#__PURE__*/React.createElement("div", {
+  }, "🖨️ Gerar PDF deste relatório"), /*#__PURE__*/React.createElement("div", {
     style: {
       ...S.card,
       padding: "16px"
     }
   }, renderRelatorioConteudo(tipo, {
     relVendas,
+    relLucro,
+    relComissao,
     relClientes,
     relPagamento,
+    relProdutos,
+    relEstoque,
     relEntregas,
     relFornecedores,
     S
@@ -9450,43 +9619,147 @@ function renderRelatorioConteudo(tipo, d) {
       display: "flex",
       justifyContent: "space-between",
       padding: "9px 0",
-      borderBottom: "1px solid var(--bg-elevated)"
+      borderBottom: "1px solid var(--bg-elevated)",
+      gap: 10
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 13,
-      color: "var(--text-secondary)"
+      color: "var(--text-secondary)",
+      flex: 1
     }
   }, label), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 14,
       fontWeight: 700,
-      color: cor || "var(--text-primary)"
+      color: cor || "var(--text-primary)",
+      whiteSpace: "nowrap"
     }
   }, valor));
+  const vazio = txt => /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      color: "var(--text-secondary)",
+      padding: 20
+    }
+  }, txt);
 
   if (tipo === "vendas") {
     const v = d.relVendas;
     return /*#__PURE__*/React.createElement("div", null, linha("Total de vendas", fmt(v.total), "#4ade80"), linha("Quantidade", v.qtd + " venda(s)"), linha("Ticket médio", fmt(v.ticket)), linha("🏪 Varejo", v.qtdVarejo + " · " + fmt(v.totalVarejo)), linha("📦 Atacado", v.qtdAtacado + " · " + fmt(v.totalAtacado)));
   }
-  if (tipo === "clientes") {
-    if (d.relClientes.length === 0) return /*#__PURE__*/React.createElement("div", {
+  if (tipo === "lucro") {
+    const l = d.relLucro;
+    return /*#__PURE__*/React.createElement("div", null, linha("Receita (vendas)", fmt(l.receita)), linha("Custo das mercadorias", fmt(l.custo), "#ff9f43"), linha("Lucro bruto", fmt(l.lucro), l.lucro >= 0 ? "#4ade80" : "#ff3b3b"), linha("Margem", l.margem.toFixed(1) + "%"), /*#__PURE__*/React.createElement("div", {
       style: {
-        textAlign: "center",
+        fontSize: 11,
         color: "var(--text-secondary)",
-        padding: 20
+        marginTop: 10
       }
-    }, "Nenhuma venda no período.");
+    }, "Custo calculado pelo valor atual de cada produto no estoque."));
+  }
+  if (tipo === "comissao") {
+    const c = d.relComissao;
+    if (c.lista.length === 0) return vazio("Nenhuma comissão no período.");
+    return /*#__PURE__*/React.createElement("div", null, c.lista.map((v, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        padding: "10px 0",
+        borderBottom: "1px solid var(--bg-elevated)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        marginBottom: 3
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700
+      }
+    }, v.nome, " (", v.qtd, ")"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 14,
+        fontWeight: 700,
+        color: "#4A5BC4"
+      }
+    }, fmt(v.total))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "var(--text-secondary)"
+      }
+    }, "Pendente: ", fmt(v.pendente), " · Pago: ", fmt(v.pago)))), linha("💰 Total geral", fmt(c.geral), "#4A5BC4"));
+  }
+  if (tipo === "produtos") {
+    if (d.relProdutos.length === 0) return vazio("Nenhuma venda no período.");
+    const porLucro = [...d.relProdutos].sort((a, b) => b.lucro - a.lucro).slice(0, 3);
+    const porFat = [...d.relProdutos].sort((a, b) => b.fat - a.fat).slice(0, 3);
+    const porQtd = [...d.relProdutos].sort((a, b) => b.qtd - a.qtd).slice(0, 3);
+    const bloco = (titulo, lista, fmtVal) => /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 14
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#E8682A",
+        marginBottom: 4
+      }
+    }, titulo), lista.map((p, i) => linha((i + 1) + ". " + p.nome, fmtVal(p), i === 0 ? "#f59e0b" : null)));
+    return /*#__PURE__*/React.createElement("div", null, bloco("🏆 Maior lucro", porLucro, p => fmt(p.lucro)), bloco("💵 Maior faturamento", porFat, p => fmt(p.fat)), bloco("📊 Mais vendidos (qtd)", porQtd, p => p.qtd + " un"));
+  }
+  if (tipo === "estoque") {
+    const e = d.relEstoque;
+    return /*#__PURE__*/React.createElement("div", null, linha("Valor total em custo", fmt(e.totalCusto), "#ff9f43"), linha("Valor total em venda", fmt(e.totalVenda), "#4ade80"), linha("Lucro potencial", fmt(e.lucroPotencial), "#4A5BC4"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#E8682A",
+        margin: "14px 0 4px"
+      }
+    }, "Por mercadoria (maior valor primeiro)"), e.lista.slice(0, 30).map((p, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        padding: "8px 0",
+        borderBottom: "1px solid var(--bg-elevated)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 600
+      }
+    }, p.nome), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        color: "var(--text-secondary)"
+      }
+    }, p.est, " un")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "var(--text-secondary)"
+      }
+    }, "Custo: ", fmt(p.vCusto), " · Venda: ", fmt(p.vVenda)))), e.lista.length > 30 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "var(--text-secondary)",
+        marginTop: 8,
+        textAlign: "center"
+      }
+    }, "Mostrando os 30 de maior valor. O PDF traz todos."));
+  }
+  if (tipo === "clientes") {
+    if (d.relClientes.length === 0) return vazio("Nenhuma venda no período.");
     return /*#__PURE__*/React.createElement("div", null, d.relClientes.map((c, i) => linha((i + 1) + ". " + c.nome + " (" + c.qtd + ")", fmt(c.total), i === 0 ? "#f59e0b" : null)));
   }
   if (tipo === "pagamento") {
-    if (d.relPagamento.length === 0) return /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center",
-        color: "var(--text-secondary)",
-        padding: 20
-      }
-    }, "Nenhuma venda no período.");
+    if (d.relPagamento.length === 0) return vazio("Nenhuma venda no período.");
     return /*#__PURE__*/React.createElement("div", null, d.relPagamento.map(p => linha(p.forma + " (" + p.qtd + ")", fmt(p.total))));
   }
   if (tipo === "entregas") {
@@ -9494,13 +9767,7 @@ function renderRelatorioConteudo(tipo, d) {
     return /*#__PURE__*/React.createElement("div", null, linha("📋 Pedido", e.porStatus.pedido + ""), linha("📦 Separando", e.porStatus.separando + ""), linha("🚚 Em Rota", e.porStatus.rota + ""), linha("✅ Concluído", e.porStatus.concluido + "", "#4ade80"), linha("Total de pedidos", e.qtd + ""), linha("Valor total", fmt(e.totalValor), "#4ade80"));
   }
   if (tipo === "fornecedores") {
-    if (d.relFornecedores.length === 0) return /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "center",
-        color: "var(--text-secondary)",
-        padding: 20
-      }
-    }, "Nenhum fornecedor cadastrado.");
+    if (d.relFornecedores.length === 0) return vazio("Nenhum fornecedor cadastrado.");
     return /*#__PURE__*/React.createElement("div", null, d.relFornecedores.map((f, i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       style: {
@@ -10038,7 +10305,8 @@ function PDVApp() {
       items: cart.map(i => ({
         name: i.name,
         qty: i.qty,
-        price: i.price
+        price: i.price,
+        cost: i.costPrice || 0
       })),
       total: cartTotal,
       payment: salePayment,
@@ -11885,6 +12153,8 @@ function PDVApp() {
     customers: customers,
     pedidos: pedidos,
     fornecedores: fornecedores,
+    products: products,
+    users: users,
     notify: notify
   }), page === "lista" && /*#__PURE__*/React.createElement(ListaComprasPage, {
     S: S,
