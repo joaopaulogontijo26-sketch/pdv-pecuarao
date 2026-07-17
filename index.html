@@ -2962,8 +2962,8 @@ function UsersPage(_ref11) {
     const pendentes = vendas.filter(s => !s.comissaoPaga);
     const totalPago = pagas.reduce((s, v) => s + (v.comissaoValor || 0), 0);
     const totalPendente = pendentes.reduce((s, v) => s + (v.comissaoValor || 0), 0);
-    const totalVendido = vendas.reduce((s, v) => s + v.total, 0);
-    const mkRow = (s, isPaga) => "<tr style='background:" + (isPaga ? "#f0fdf4" : "#fffbeb") + "'>" + "<td>" + s.date + " " + s.time + "</td>" + "<td>" + s.customer + "</td>" + "<td>" + s.items.map(i => i.qty + "× " + i.name).join(", ") + "</td>" + "<td style='text-align:right'>" + fmt(s.total) + "</td>" + "<td style='text-align:right;font-weight:700;color:" + (isPaga ? "#16a34a" : "#ca8a04") + "'>" + fmt(s.comissaoValor || 0) + "</td>" + "<td style='text-align:center'>" + (isPaga ? "✅ Pago em " + (s.comissaoPagaEm || "") : "⏳ Pendente") + "</td>" + "</tr>";
+    const totalVendido = vendas.reduce((s, v) => s + (v.total || 0), 0);
+    const mkRow = (s, isPaga) => "<tr style='background:" + (isPaga ? "#f0fdf4" : "#fffbeb") + "'>" + "<td>" + s.date + " " + s.time + "</td>" + "<td>" + s.customer + "</td>" + "<td>" + (s.items || []).map(i => i.qty + "× " + i.name).join(", ") + "</td>" + "<td style='text-align:right'>" + fmt(s.total) + "</td>" + "<td style='text-align:right;font-weight:700;color:" + (isPaga ? "#16a34a" : "#ca8a04") + "'>" + fmt(s.comissaoValor || 0) + "</td>" + "<td style='text-align:center'>" + (isPaga ? "✅ Pago em " + (s.comissaoPagaEm || "") : "⏳ Pendente") + "</td>" + "</tr>";
     const rows = [...pagas, ...pendentes].map(s => mkRow(s, !!s.comissaoPaga)).join("");
     const html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Comissão " + u.name + "</title>" + "<style>body{font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:20px;}" + "table{width:100%;border-collapse:collapse;font-size:11px;}" + "th{background:#1a1a2e;color:#fff;padding:7px;text-align:left;font-size:10px;}" + "td{padding:6px 7px;border-bottom:1px solid #eee;}</style></head><body>" + "<div style='background:#1a1a2e;color:#fff;padding:16px;border-radius:8px;margin-bottom:16px'>" + "<div style='font-size:20px;font-weight:800'>💰 Relatório de Comissão — " + u.name + "</div>" + "<div style='font-size:12px;margin-top:4px;opacity:.8'>Período: " + de + " a " + (ate || todayStr()) + "</div></div>" + "<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px'>" + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px'><div style='font-size:9px;color:#888;text-transform:uppercase'>Total Vendido</div><div style='font-size:16px;font-weight:800;color:#16a34a'>" + fmt(totalVendido) + "</div></div>" + "<div style='background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px'><div style='font-size:9px;color:#888;text-transform:uppercase'>Nº Vendas</div><div style='font-size:16px;font-weight:800;color:#2563eb'>" + vendas.length + "</div></div>" + "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px'><div style='font-size:9px;color:#888;text-transform:uppercase'>✅ Comissão Paga</div><div style='font-size:16px;font-weight:800;color:#16a34a'>" + fmt(totalPago) + "</div></div>" + "<div style='background:#fefce8;border:1px solid #fef08a;border-radius:6px;padding:10px'><div style='font-size:9px;color:#888;text-transform:uppercase'>⏳ A Pagar</div><div style='font-size:16px;font-weight:800;color:#ca8a04'>" + fmt(totalPendente) + "</div></div>" + "</div>" + "<table><thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Venda</th><th>Comissão</th><th>Status</th></tr></thead><tbody>" + rows + "</tbody>" + "<tfoot><tr style='background:#1a1a2e;color:#fff;font-weight:700'><td colspan='3'>TOTAL</td><td>" + fmt(totalVendido) + "</td><td>" + fmt(totalPago + totalPendente) + "</td><td></td></tr></tfoot>" + "</table>" + "<div style='margin-top:16px;font-size:10px;color:#aaa;text-align:center'>Gerado em " + new Date().toLocaleString("pt-BR") + "</div>" + "</body></html>";
     const w = window.open("", "_blank", "width=820,height=650");
@@ -5124,15 +5124,11 @@ function AtacadoPage(_ref19) {
       gap: 8,
       marginBottom: 8,
       position: "sticky",
-      top: 0,
-      zIndex: 20,
+      top: -1,
+      zIndex: 1,
       background: "var(--bg-app)",
-      paddingTop: 10,
-      paddingBottom: 10,
-      marginLeft: -16,
-      marginRight: -16,
-      paddingLeft: 16,
-      paddingRight: 16
+      paddingTop: 6,
+      paddingBottom: 6
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9999,11 +9995,6 @@ function PDVApp() {
     _useState216 = _slicedToArray(_useState215, 2),
     deleteTarget = _useState216[0],
     setDeleteTarget = _useState216[1];
-  // Pergunta "atualizar entrega vinculada?" ao salvar edição de venda
-  const _useStateConfEnt = useState(null),
-    _useStateConfEntB = _slicedToArray(_useStateConfEnt, 2),
-    confirmarEntrega = _useStateConfEntB[0],
-    setConfirmarEntrega = _useStateConfEntB[1];
   const _useState217 = useState(""),
     _useState218 = _slicedToArray(_useState217, 2),
     prodSheetPrefill = _useState218[0],
@@ -11644,15 +11635,11 @@ function PDVApp() {
       marginBottom: 8,
       alignItems: "center",
       position: "sticky",
-      top: 0,
-      zIndex: 20,
+      top: -1,
+      zIndex: 1,
       background: "var(--bg-app)",
-      paddingTop: 10,
-      paddingBottom: 10,
-      marginLeft: -16,
-      marginRight: -16,
-      paddingLeft: 16,
-      paddingRight: 16
+      paddingTop: 6,
+      paddingBottom: 6
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -13243,91 +13230,13 @@ function PDVApp() {
         comissaoValor: comissaoCalc,
         comissaoPaga: editSaleForm.vendedor === x.vendedor ? x.comissaoPaga : false
       } : x));
-      // Se essa venda tem uma entrega vinculada, pergunta se quer atualizá-la
-      const entregaVinc = (pedidos || []).find(p => p.vendaId === editSale.id);
-      if (entregaVinc) {
-        setConfirmarEntrega({
-          pedido: entregaVinc,
-          itens: editSaleForm.items.map(i => ({
-            name: i.name,
-            qty: i.qty,
-            price: i.price
-          })),
-          total: newTotal
-        });
-      } else {
-        notify("Venda atualizada ✓");
-      }
+      notify("Venda atualizada ✓");
       setEditSale(null);
     }
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "check",
     size: 14
-  }), " Salvar")))), confirmarEntrega && /*#__PURE__*/React.createElement(Sheet, {
-    onClose: () => {
-      setConfirmarEntrega(null);
-      notify("Venda atualizada ✓ (entrega mantida)");
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "center",
-      paddingBottom: 6
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 44,
-      marginBottom: 12
-    }
-  }, "\uD83D\uDE9A"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 16,
-      fontWeight: 700,
-      marginBottom: 8
-    }
-  }, "Atualizar a entrega vinculada?"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: "#6a6d80",
-      marginBottom: 22,
-      lineHeight: 1.5
-    }
-  }, "Esta venda tem o pedido de entrega ", /*#__PURE__*/React.createElement("strong", {
-    style: {
-      color: "var(--text-primary)"
-    }
-  }, confirmarEntrega.pedido.numero), ". Quer que os itens e o total da entrega sejam atualizados para bater com a venda editada?"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    style: {
-      ...S.btn("ghost"),
-      flex: 1,
-      justifyContent: "center",
-      padding: "12px"
-    },
-    onClick: () => {
-      setConfirmarEntrega(null);
-      notify("Venda atualizada ✓ (entrega mantida)");
-    }
-  }, "N\xE3o, manter"), /*#__PURE__*/React.createElement("button", {
-    style: {
-      ...S.btn("primary"),
-      flex: 1,
-      justifyContent: "center",
-      padding: "12px"
-    },
-    onClick: () => {
-      persistE(pedidos.map(p => p.id === confirmarEntrega.pedido.id ? {
-        ...p,
-        itens: confirmarEntrega.itens,
-        total: confirmarEntrega.total
-      } : p));
-      setConfirmarEntrega(null);
-      notify("Venda e entrega atualizadas ✓");
-    }
-  }, "Sim, atualizar"))), prodSheet && /*#__PURE__*/React.createElement(ProductSheet, {
+  }), " Salvar"))), prodSheet && /*#__PURE__*/React.createElement(ProductSheet, {
     S: S,
     initial: editProd,
     prefillName: prodSheetPrefill,
