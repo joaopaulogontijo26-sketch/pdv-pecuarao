@@ -7594,6 +7594,7 @@ function EntregasPage(_ref24) {
     pedidosProp = _ref24.pedidos,
     persistEProp = _ref24.persistE,
     persistSProp = _ref24.persistS,
+    products = _ref24.products,
     onReload = _ref24.onReload;
   const _useState141 = useState(() => pedidosProp || load("pdv_entregas", [])),
     _useState142 = _slicedToArray(_useState141, 2),
@@ -7640,6 +7641,61 @@ function EntregasPage(_ref24) {
     ...f,
     [k]: v
   }));
+  // Edição completa da entrega (cliente/telefone/endereço/itens) — reflete
+  // na venda vinculada do Histórico, quando houver.
+  const _useStateEditPed = useState(null),
+    _useStateEditPedB = _slicedToArray(_useStateEditPed, 2),
+    editPed = _useStateEditPedB[0],
+    setEditPed = _useStateEditPedB[1];
+  const _useStateEditPedForm = useState({
+      cliente: "",
+      telefone: "",
+      endereco: "",
+      items: []
+    }),
+    _useStateEditPedFormB = _slicedToArray(_useStateEditPedForm, 2),
+    editPedForm = _useStateEditPedFormB[0],
+    setEditPedForm = _useStateEditPedFormB[1];
+  const _useStateEditPedBusca = useState(""),
+    _useStateEditPedBuscaB = _slicedToArray(_useStateEditPedBusca, 2),
+    editPedAddBusca = _useStateEditPedBuscaB[0],
+    setEditPedAddBusca = _useStateEditPedBuscaB[1];
+  const abrirEdicaoPedido = ped => {
+    setEditPed(ped);
+    setEditPedForm({
+      cliente: ped.cliente || "",
+      telefone: ped.telefone || "",
+      endereco: ped.endereco || "",
+      items: ped.itens || []
+    });
+    setEditPedAddBusca("");
+  };
+  const salvarEdicaoPedido = () => {
+    if (!editPedForm.cliente.trim()) {
+      notify("Informe o cliente!", "error");
+      return;
+    }
+    const newTotal = editPedForm.items.reduce((s, i) => s + i.qty * i.price, 0);
+    persistE(pedidos.map(p => p.id === editPed.id ? {
+      ...p,
+      cliente: editPedForm.cliente,
+      telefone: editPedForm.telefone,
+      endereco: editPedForm.endereco,
+      itens: editPedForm.items,
+      total: newTotal
+    } : p));
+    // Se a entrega estiver vinculada a uma venda, atualiza também o Histórico.
+    if (editPed.vendaId && persistSProp) {
+      persistSProp((sales || []).map(x => x.id === editPed.vendaId ? {
+        ...x,
+        customer: editPedForm.cliente,
+        items: editPedForm.items,
+        total: newTotal
+      } : x));
+    }
+    notify("Entrega atualizada ✓");
+    setEditPed(null);
+  };
   const STATUS = [{
     id: "pedido",
     label: "Pedido",
@@ -8160,7 +8216,19 @@ function EntregasPage(_ref24) {
         padding: "7px",
         fontSize: 12
       }
-    }, "\uD83D\uDCAC Obs"), !ped.vendaId && /*#__PURE__*/React.createElement("button", {
+    }, "\uD83D\uDCAC Obs"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => abrirEdicaoPedido(ped),
+      style: {
+        ...S.btn("ghost"),
+        flex: 1,
+        justifyContent: "center",
+        padding: "7px",
+        fontSize: 12
+      }
+    }, /*#__PURE__*/React.createElement(Icon, {
+      name: "edit",
+      size: 13
+    }), " Editar"), !ped.vendaId && /*#__PURE__*/React.createElement("button", {
       onClick: () => lancarNoHistorico(ped),
       style: {
         ...S.btn("ghost"),
@@ -8359,7 +8427,277 @@ function EntregasPage(_ref24) {
   }, /*#__PURE__*/React.createElement(Icon, {
     name: "truck",
     size: 14
-  }), " Criar Pedido"))));
+  }), " Criar Pedido"))), editPed && /*#__PURE__*/React.createElement(Sheet, {
+    onClose: () => setEditPed(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 700,
+      marginBottom: 16
+    }
+  }, "\u270F\uFE0F Editar Entrega"), editPed.vendaId && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#4ade80",
+      marginBottom: 12
+    }
+  }, "\u2139\uFE0F Vinculada a uma venda do Hist\xF3rico \u2014 as altera\xE7\xF5es v\xE3o refletir l\xE1 tamb\xE9m."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 5
+    }
+  }, "Cliente"), /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    placeholder: "Nome do cliente",
+    value: editPedForm.cliente,
+    onChange: e => setEditPedForm(f => ({
+      ...f,
+      cliente: e.target.value
+    }))
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 5
+    }
+  }, "Telefone"), /*#__PURE__*/React.createElement("input", {
+    style: S.input,
+    type: "tel",
+    placeholder: "(00) 90000-0000",
+    value: editPedForm.telefone,
+    onChange: e => setEditPedForm(f => ({
+      ...f,
+      telefone: e.target.value
+    }))
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 5
+    }
+  }, "Endere\xE7o"), /*#__PURE__*/React.createElement("textarea", {
+    value: editPedForm.endereco,
+    onChange: e => setEditPedForm(f => ({
+      ...f,
+      endereco: e.target.value
+    })),
+    placeholder: "Rua, n\xFAmero, bairro, cidade...",
+    style: {
+      ...S.input,
+      height: 68,
+      resize: "none",
+      verticalAlign: "top",
+      fontSize: 13,
+      lineHeight: 1.4
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: "#E8682A",
+      textTransform: "uppercase",
+      letterSpacing: 1,
+      marginBottom: 8
+    }
+  }, "Itens"), editPedForm.items.map((item, idx) => /*#__PURE__*/React.createElement("div", {
+    key: idx,
+    style: {
+      ...S.card,
+      padding: 10,
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 600,
+      marginBottom: 6
+    }
+  }, item.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr auto",
+      gap: 8,
+      alignItems: "flex-end"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 3,
+      fontSize: 9
+    }
+  }, "Qtd"), /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...S.input,
+      padding: "7px 10px",
+      fontSize: 13
+    },
+    type: "number",
+    step: "0.001",
+    min: "0",
+    value: item.qty,
+    onChange: e => setEditPedForm(f => ({
+      ...f,
+      items: f.items.map((x, i) => i === idx ? {
+        ...x,
+        qty: +e.target.value
+      } : x)
+    }))
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 3,
+      fontSize: 9
+    }
+  }, "Pre\xE7o Unit."), /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...S.input,
+      padding: "7px 10px",
+      fontSize: 13
+    },
+    type: "number",
+    step: "0.01",
+    min: "0",
+    value: item.price,
+    onChange: e => setEditPedForm(f => ({
+      ...f,
+      items: f.items.map((x, i) => i === idx ? {
+        ...x,
+        price: +e.target.value
+      } : x)
+    }))
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditPedForm(f => ({
+      ...f,
+      items: f.items.filter((_, i) => i !== idx)
+    })),
+    style: {
+      ...S.btn("danger"),
+      padding: "8px 10px"
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "trash",
+    size: 12
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#E8682A",
+      marginTop: 4,
+      textAlign: "right"
+    }
+  }, "Total: ", fmt(item.qty * item.price)))), (products || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.lbl,
+      marginBottom: 5
+    }
+  }, "\u2795 Adicionar produto"), /*#__PURE__*/React.createElement("input", {
+    style: {
+      ...S.input,
+      marginBottom: editPedAddBusca.trim() ? 6 : 0
+    },
+    placeholder: "Buscar produto para adicionar...",
+    value: editPedAddBusca,
+    onChange: e => setEditPedAddBusca(e.target.value)
+  }), editPedAddBusca.trim() && /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxHeight: 180,
+      overflowY: "auto",
+      border: "1px solid var(--bg-elevated)",
+      borderRadius: 8
+    }
+  }, products.filter(p => p.name.toLowerCase().includes(editPedAddBusca.toLowerCase())).slice(0, 20).map(p => /*#__PURE__*/React.createElement("div", {
+    key: p.id,
+    onClick: () => {
+      setEditPedForm(f => {
+        const existe = f.items.findIndex(x => x.name === p.name);
+        if (existe >= 0) {
+          return {
+            ...f,
+            items: f.items.map((x, i) => i === existe ? {
+              ...x,
+              qty: (x.qty || 0) + 1
+            } : x)
+          };
+        }
+        return {
+          ...f,
+          items: [...f.items, {
+            name: p.name,
+            qty: 1,
+            price: +(p.price || 0),
+            cost: +(p.costPrice || 0)
+          }]
+        };
+      });
+      setEditPedAddBusca("");
+    },
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      padding: "10px 12px",
+      cursor: "pointer",
+      borderBottom: "1px solid var(--bg-elevated)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13
+    }
+  }, p.name), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      color: "#E8682A",
+      fontWeight: 700
+    }
+  }, fmt(p.price)))), products.filter(p => p.name.toLowerCase().includes(editPedAddBusca.toLowerCase())).length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "10px 12px",
+      fontSize: 12,
+      color: "var(--text-secondary)"
+    }
+  }, "Nenhum produto encontrado."))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 14,
+      fontWeight: 800,
+      color: "#4ade80",
+      textAlign: "right",
+      marginBottom: 16
+    }
+  }, "Total: ", fmt(editPedForm.items.reduce((s, i) => s + i.qty * i.price, 0))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    style: {
+      ...S.btn("ghost"),
+      flex: 1,
+      justifyContent: "center"
+    },
+    onClick: () => setEditPed(null)
+  }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      ...S.btn("primary"),
+      flex: 1,
+      justifyContent: "center"
+    },
+    onClick: salvarEdicaoPedido
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "check",
+    size: 14
+  }), " Salvar"))));
 }
 
 // ── BACKUP LIST ────────────────────────────────────────────────────────────────
@@ -10060,6 +10398,10 @@ function PDVApp() {
     _useStateHF4b = _slicedToArray(_useStateHF4, 2),
     histPeriodo = _useStateHF4b[0],
     setHistPeriodo = _useStateHF4b[1];
+  const _useStateHF6 = useState("todos"),
+    _useStateHF6b = _slicedToArray(_useStateHF6, 2),
+    histVendedor = _useStateHF6b[0],
+    setHistVendedor = _useStateHF6b[1];
   const _useStateHF5 = useState(false),
     _useStateHF5b = _slicedToArray(_useStateHF5, 2),
     histFiltrosAbertos = _useStateHF5b[0],
@@ -10738,9 +11080,20 @@ function PDVApp() {
         if (histPeriodo === "7dias" && (diff < 0 || diff > 7)) return false;
         if (histPeriodo === "30dias" && (diff < 0 || diff > 30)) return false;
       }
+      // Vendedor
+      if (histVendedor !== "todos") {
+        const v = s.vendedor || "Sem vendedor";
+        if (v !== histVendedor) return false;
+      }
       return true;
     });
-  }, [sales, histBusca, histTipo, histPgto, histPeriodo]);
+  }, [sales, histBusca, histTipo, histPgto, histPeriodo, histVendedor]);
+  // Lista de vendedores únicos presentes nas vendas (para o filtro do Histórico)
+  const vendedoresHistorico = useMemo(() => {
+    const set = new Set();
+    (sales || []).forEach(s => set.add(s.vendedor || "Sem vendedor"));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [sales]);
   const histTotalFiltrado = histFiltradas.reduce((s, v) => s + (v.total || 0), 0);
   const lowStock = products.filter(p => p.stock > 0 && p.stock < (p.minStock || 10));
   const outStock = products.filter(p => p.stock === 0);
@@ -12152,6 +12505,7 @@ function PDVApp() {
     pedidos: pedidos,
     persistE: persistE,
     persistS: persistS,
+    products: products,
     onReload: reloadFromSupabase
   }), page === "usuarios" && /*#__PURE__*/React.createElement(UsersPage, {
     S: S,
@@ -12688,7 +13042,7 @@ function PDVApp() {
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setHistFiltrosAbertos(f => !f),
     style: {
-      ...S.btn(histFiltrosAbertos || histBusca || histTipo !== "todos" || histPgto !== "todos" || histPeriodo !== "todos" ? "primary" : "ghost"),
+      ...S.btn(histFiltrosAbertos || histBusca || histTipo !== "todos" || histPgto !== "todos" || histPeriodo !== "todos" || histVendedor !== "todos" ? "primary" : "ghost"),
       padding: "7px 12px",
       fontSize: 12
     }
@@ -12772,6 +13126,25 @@ function PDVApp() {
       onClick: () => setHistPeriodo(k),
       style: {
         ...S.btn(histPeriodo === k ? "primary" : "ghost"),
+        padding: "6px 11px",
+        fontSize: 12
+      }
+    }, lbl);
+  })), vendedoresHistorico.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, [["todos", "\uD83D\uDC64 Todo vendedor"], ...vendedoresHistorico.map(v => [v, "\uD83D\uDC64 " + v])].map(_ref76 => {
+    let _ref77 = _slicedToArray(_ref76, 2),
+      k = _ref77[0],
+      lbl = _ref77[1];
+    return /*#__PURE__*/React.createElement("button", {
+      key: k,
+      onClick: () => setHistVendedor(k),
+      style: {
+        ...S.btn(histVendedor === k ? "primary" : "ghost"),
         padding: "6px 11px",
         fontSize: 12
       }
@@ -13230,6 +13603,19 @@ function PDVApp() {
         comissaoValor: comissaoCalc,
         comissaoPaga: editSaleForm.vendedor === x.vendedor ? x.comissaoPaga : false
       } : x));
+      // Se essa venda tiver uma entrega vinculada, atualiza também os dados
+      // dela (cliente, itens, total e pagamento) para não ficar desatualizada.
+      const pedidoVinculado = (pedidos || []).find(p => p.vendaId === editSale.id);
+      if (pedidoVinculado) {
+        persistE(pedidos.map(p => p.id === pedidoVinculado.id ? {
+          ...p,
+          cliente: editSaleForm.customer || p.cliente,
+          itens: editSaleForm.items,
+          total: newTotal,
+          pagamento: editSaleForm.payment || p.pagamento,
+          isPrazo: editSaleForm.payment === "A Prazo"
+        } : p));
+      }
       notify("Venda atualizada ✓");
       setEditSale(null);
     }
