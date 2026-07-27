@@ -2824,7 +2824,6 @@ function UsersPage(_ref11) {
       pin: "",
       role: "vendedor",
       comissao: 0,
-      dashboardView: "proprio",
       permissions: {
         pdv: true,
         atacado: false,
@@ -2859,7 +2858,6 @@ function UsersPage(_ref11) {
       pin: "",
       role: "vendedor",
       comissao: 0,
-      dashboardView: "proprio",
       permissions: {
         pdv: true,
         atacado: false,
@@ -2878,7 +2876,6 @@ function UsersPage(_ref11) {
   const openEdit = u => {
     setEditUser(u);
     setForm({
-      dashboardView: "proprio",
       ...u
     });
     setSheet(true);
@@ -3502,32 +3499,7 @@ function UsersPage(_ref11) {
     value: "atacado"
   }, "Atacado"), /*#__PURE__*/React.createElement("option", {
     value: "admin"
-  }, "Administrador")))), form.role !== "admin" && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 14
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...S.lbl,
-      marginBottom: 5
-    }
-  }, "Dashboard financeiro"), /*#__PURE__*/React.createElement("select", {
-    style: S.input,
-    value: form.dashboardView || "proprio",
-    onChange: e => setF("dashboardView", e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "completo"
-  }, "\uD83D\uDC41\uFE0F Completo \u2014 v\xEA totais de todos"), /*#__PURE__*/React.createElement("option", {
-    value: "proprio"
-  }, "\uD83D\uDC64 Somente o que ele vendeu"), /*#__PURE__*/React.createElement("option", {
-    value: "oculto"
-  }, "\uD83D\uDD12 Oculto \u2014 n\xE3o v\xEA n\xFAmeros")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 11,
-      color: "var(--text-secondary)",
-      marginTop: 3
-    }
-  }, "Controla o que aparece nos cards do Dashboard para este usu\xE1rio.")), /*#__PURE__*/React.createElement("div", {
+  }, "Administrador")))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 14
     }
@@ -11073,11 +11045,9 @@ function PDVApp() {
       return 0;
     });
   }, [products, searchProd, filterAvail, filterTipoVenda, priceMin, priceMax, sortBy, vendidoPorNome]);
-  const dashboardView = (currentUser === null || currentUser === void 0 ? void 0 : currentUser.role) === "admin" ? "completo" : (currentUser === null || currentUser === void 0 ? void 0 : currentUser.dashboardView) || "proprio";
-  const dashboardSalesBase = dashboardView === "completo" ? sales : sales.filter(s => s.vendedor === (currentUser === null || currentUser === void 0 ? void 0 : currentUser.name));
-  const todaySales = dashboardSalesBase.filter(s => s.date === todayStr());
+  const todaySales = sales.filter(s => s.date === todayStr());
   const todayRev = todaySales.reduce((s, v) => s + v.total, 0);
-  const totalRev = dashboardSalesBase.reduce((s, v) => s + v.total, 0);
+  const totalRev = sales.reduce((s, v) => s + v.total, 0);
   // Vendas filtradas do Histórico
   const histFiltradas = useMemo(() => {
     const hoje = new Date();
@@ -11618,25 +11588,7 @@ function PDVApp() {
       name: "plus",
       size: 14
     }), " Novo Produto"))
-  }) : /*#__PURE__*/React.createElement(React.Fragment, null, dashboardView === "oculto" ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...S.card,
-      marginBottom: 14,
-      textAlign: "center",
-      padding: "22px 16px",
-      color: "var(--text-secondary)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 26,
-      marginBottom: 6
-    }
-  }, "\uD83D\uDD12"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      fontWeight: 600
-    }
-  }, "N\xFAmeros do dashboard indispon\xEDveis para o seu usu\xE1rio.")) : /*#__PURE__*/React.createElement("div", {
+  }) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gridTemplateColumns: screen.desktop ? "repeat(4,1fr)" : "1fr 1fr",
@@ -11644,17 +11596,17 @@ function PDVApp() {
       marginBottom: 14
     }
   }, [{
-    label: dashboardView === "completo" ? "Vendas Hoje" : "Minhas Vendas Hoje",
+    label: "Vendas Hoje",
     value: todaySales.length,
     sub: "transações",
     accent: "#E8682A"
   }, {
-    label: dashboardView === "completo" ? "Receita Hoje" : "Minha Receita Hoje",
+    label: "Receita Hoje",
     value: fmt(todayRev),
     sub: "faturamento",
     accent: "#4A5BC4"
   }, {
-    label: dashboardView === "completo" ? "Receita Total" : "Minha Receita Total",
+    label: "Receita Total",
     value: fmt(totalRev),
     sub: "acumulado",
     accent: "#a78bfa"
