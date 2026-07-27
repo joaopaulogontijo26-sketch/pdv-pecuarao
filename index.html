@@ -10252,6 +10252,36 @@ function PDVApp() {
     };
   }, []);
 
+  // Sem isso, se o status ficasse "Offline" por uma falha pontual e não
+  // houvesse nada pendente pra reenviar (ex: só estava navegando, sem
+  // salvar nada), o indicador ficava vermelho até a pessoa clicar em algo
+  // que disparasse uma nova sincronização — mesmo com a internet já de
+  // volta. Aqui a gente testa a conexão sozinho a cada 15s enquanto
+  // estiver "Offline", e volta pro verde assim que o servidor responder.
+  useEffect(() => {
+    if (serverOk !== false) return;
+    const testarReconexao = async () => {
+      if (!navigator.onLine) return;
+      const key = _SB_KEY();
+      if (!key) return;
+      try {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/', {
+          method: 'HEAD',
+          headers: _SB_H(),
+          signal: _timeoutSignal(8000)
+        });
+        if (r.ok || r.status === 404) {
+          setServerOk(true);
+          flushOutbox().then(() => retryTombstones());
+        }
+      } catch (e) {
+        // ainda sem conexão, tenta de novo no próximo ciclo
+      }
+    };
+    const timer = setInterval(testarReconexao, 15000);
+    return () => clearInterval(timer);
+  }, [serverOk]);
+
   // Envia pro servidor SÓ os registros que realmente mudaram, comparando o
   // array novo com o anterior. Antes, cada clique reenviava o array inteiro
   // (os 167 produtos, todas as vendas...), o que estourava a cota de
